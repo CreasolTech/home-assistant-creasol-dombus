@@ -1,0 +1,19 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Dispositivo già configurato"
+        },
+        "error": {
+            "cannot_connect": "Impossibile connettersi",
+            "unknown": "Errore inatteso"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "serialpath": "Porta seriale"
+                }
+            }
+        }
+    },
+    "title": "Creasol DomBus - Moduli RS485"
+}

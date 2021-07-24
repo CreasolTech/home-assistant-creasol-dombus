@@ -1,0 +1,7 @@
+{
+  "name": "Creasol DomBus",
+  "content_in_root": false,
+  "domains": ["binary-sensor", "light", "sensor", "switch"],
+  "homeassistant": "0.0.1",
+  "iot_class": "local_push"
+}

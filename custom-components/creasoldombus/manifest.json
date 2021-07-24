@@ -1,0 +1,16 @@
+{
+  "domain": "creasoldombus",
+  "name": "Creasol DomBus RS485 modules, I/O/S",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/creasoldombus",
+  "requirements": [
+  	"pyserial==3.5",
+	"pyserial-asyncio==0.5"
+  ],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": ["@CreasolTech"],
+  "iot_class": "local_push"
+}

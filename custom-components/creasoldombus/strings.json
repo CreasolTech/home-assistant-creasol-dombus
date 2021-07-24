@@ -1,0 +1,28 @@
+{
+  "title": "Creasol DomBus RS485 modules",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enter serial path",
+        "description": "Enter a valid serial path, like /dev/ttyS0 or /dev/ttyUSB0",
+        "data": {
+          "serialpath": "Serial path"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "turn_on": "Turn on {entity_name}",
+      "turn_off": "Turn off {entity_name}"
+    }
+  }
+}
