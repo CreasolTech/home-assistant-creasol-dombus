@@ -16,6 +16,6 @@ Actually the following modules are supported:
 * DomBus31: 6 N.O. relay outputs + 2 N.O./N.C. relay outputs
 * DomBusTH: Temperature + Relative Humidity sensors, red + green + white LEDs, 4 GPIO, 2 open-drain outputs, 1 analog input
 
-<img src="https://images.creasol.it/AN_domoticz_example2.png />
+<img src="https://images.creasol.it/AN_domoticz_example2.png" />
 
 Modules and components are developed by Creasol, https://www.creasol.it
