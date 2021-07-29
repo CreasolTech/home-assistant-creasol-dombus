@@ -14,10 +14,11 @@ cp -a home-assistant-creasol-dombus/custom_components HADIR/config/
 ```
 
 # Creasol DomBus modules
-Modules that can be connected together by wire bus, using a common alarm shielded cable with 4 wires: 
+Domotic modules, optimized for very low power consumption and high reliability, that can be connected together by wired bus, using a common alarm shielded cable within 4 wires: 
 * 2x0.22mm² wires for data
 * 2x0.5mm² wires for 12-14Vdc power supply 
-Using a 13.6V power supply with lead acid backup batteries permits to get all system working even in case of power outage.
+
+Using a 13.6V power supply with a lead acid backup battery permits to get domotic system working even in case of power outage: this is perfect expecially for alarm systems.
 
 Actually the following modules are supported:
 * DomBus1: 2-3 N.O. relay outputs, 6 digital inputs, 1 230Vac opto-input 
@@ -26,9 +27,9 @@ Actually the following modules are supported:
 * DomBus31: 6 N.O. relay outputs + 2 N.O./N.C. relay outputs
 * DomBusTH: Temperature + Relative Humidity sensors, red + green + white LEDs, 4 GPIO, 2 open-drain outputs, 1 analog input
 
-<img src="https://images.creasol.it/AN_domoticz_example2.png" />
-
 Modules and components are developed by Creasol, https://www.creasol.it
+
+![alt Domotic system using DomBus modules](https://images.creasol.it/AN_domoticz_example2.png)
 
 ![alt DomBus23 image](https://images.creasol.it/creDomBus23_400.png)
 ![alt DomBus31 image](https://images.creasol.it/creDomBus31_400.png)
