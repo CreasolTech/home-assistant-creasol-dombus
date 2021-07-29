@@ -1,7 +1,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
 # home-assistant-creasol-dombus
-Home Assistant custom component to manage Creasol DomBus modules to realize a complete domotic network connected by RS485 bus 115200bps.
+Home Assistant custom component to manage Creasol DomBus modules to realize a complete domotic network connected by RS485 bus at 115200bps.
 
 # Installation
 Copy contents of custom_components folder to your home-assistant config folder or install through HACS.
@@ -14,7 +14,11 @@ cp -a home-assistant-creasol-dombus/custom_components HADIR/config/
 ```
 
 # Creasol DomBus modules
-Modules that can be connected together by wire bus, using a common alarm cable with 4 wires: 2 wires for 12V power supply, 2 wires for serial data.
+Modules that can be connected together by wire bus, using a common alarm shielded cable with 4 wires: 
+* 2x0.22mm² wires for data
+* 2x0.5mm² wires for 12-14Vdc power supply 
+Using a 13.6V power supply with lead acid backup batteries permits to get all system working even in case of power outage.
+
 Actually the following modules are supported:
 * DomBus1: 2-3 N.O. relay outputs, 6 digital inputs, 1 230Vac opto-input 
 * DomBus12: 7 GPIO, 2 open-drain outputs
