@@ -24,7 +24,7 @@ Actually the following modules are supported:
 * [DomBus1](https://www.creasol.it/CreasolDomBus1): 2-3 N.O. relay outputs, 6 digital inputs, 1 230Vac opto-input 
 * [DomBus12](https://www.creasol.it/CreasolDomBus12): 7 GPIO, 2 open-drain outputs
 * [DomBus23](https://www.creasol.it/CreasolDomBus23): 2 N.O. relay outputs, 1 mosfet output (for 12-24V LED dimming or other DC loads), 2 analog outputs 0-10V, 2 GPIO, 2 low voltage opto-inputs (5-40V), 1 230Vac opto input
-* [DomBus31](https://www.creasol.it/CreasolDomBus31): 6 N.O. relay outputs + 2 N.O./N.C. relay outputs
+* [DomBus31](https://www.creasol.it/CreasolDomBus31): low power module with 6 N.O. relay outputs + 2 N.O./N.C. relay outputs
 * [DomBusTH](https://www.creasol.it/CreasolDomBusTH): Temperature + Relative Humidity sensors, red + green + white LEDs, 4 GPIO, 2 open-drain outputs, 1 analog input
 
 Modules and components are developed by Creasol, https://www.creasol.it/domotics
@@ -35,9 +35,9 @@ Modules and components are developed by Creasol, https://www.creasol.it/domotics
 
 ## Pictures of DomBus modules
 
-![alt DomBus23 image](https://images.creasol.it/creDomBus23_400.png)
-![alt DomBus31 image](https://images.creasol.it/creDomBus31_400.png)
+![alt DomBus23 image](https://images.creasol.it/creDomBus23_400.png "DomBus23: 2 N.O. relay outputs, 1 mosfet output for 12-24V LED dimming or other DC loads, 2 analog outputs 0-10V, 2 GPIO, 2 low voltage opto-inputs 5-40V, 1 230Vac opto input")
+![alt DomBus31 image](https://images.creasol.it/creDomBus31_400.png "DomBus31: low power module with 6 N.O. relay outputs + 2 N.O./N.C. relay outputs")
 
-![alt DomBusTH image](https://images.creasol.it/creDomBusTH1_200.jpg)
-![alt DomBusTH image](https://images.creasol.it/creDomBusTH2_200.jpg)
-![alt DomBus12 image](https://images.creasol.it/creDomBus12_400.png)
+![alt DomBusTH image](https://images.creasol.it/creDomBusTH1_200.jpg "DomBusTH rear view: module with temp+humidity sensors, 3 LEDs, 4 I/O, 2 outputs, 1 analog input")
+![alt DomBusTH image](https://images.creasol.it/creDomBusTH2_200.jpg "DomBusTH front view with white led, red/green led, temperature + humidity sensor")
+![alt DomBus12 image](https://images.creasol.it/creDomBus12_400.png "DomBus12: 7 I/Os + 2 open-drain outputs that can be connected to 2 external relays")
