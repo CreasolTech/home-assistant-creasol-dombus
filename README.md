@@ -4,8 +4,14 @@
 Home Assistant custom component to manage Creasol DomBus modules to realize a complete domotic network connected by RS485 bus 115200bps.
 
 # Installation
-Copy contents of custom_components folder to your home-assistant config/custom_components folder or install through HACS.
-After reboot of Home-Assistant, this integration can be configured through the integration setup UI
+Copy contents of custom_components folder to your home-assistant config folder or install through HACS.
+After reboot of Home-Assistant, this integration can be added through the Configuration -> Integrations -> + ADD INTEGRATION 
+
+```console
+cd /tmp
+git clone https://github.com/CreasolTech/home-assistant-creasol-dombus.git
+cp -a home-assistant-creasol-dombus/custom_components HADIR/config/
+```
 
 # Creasol DomBus modules
 Modules that can be connected together by wire bus, using a common alarm cable with 4 wires: 2 wires for 12V power supply, 2 wires for serial data.
