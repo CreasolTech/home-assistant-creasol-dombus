@@ -73,11 +73,13 @@ class DomBusHub:
 
     def __init__(self, hass, entry, loop=None):
         """Initialize."""
-        self.txAckEnabled = False   # Debug: if False, does not transmit ACKs. Used when another controller is connected to the same bus
+        self.txAckEnabled = dbc.TXACK_ENABLE  # DEBUG: if False, does not transmit ACKs. Used when another controller is connected to the same bus
         self.rxEnabled = False
         self.logLevel = dbc.LOG_DUMPALL  # force dumping everything
         self._hass = hass
         self.entry = entry
+        # init hass.data[DOMAIN] if not already exists
+        configFileInit(hass, entry)
         self._config = hass.data[DOMAIN][self.entry.entry_id]
         self._busnum = hass.data[DOMAIN][BUSNUM][entry.entry_id]
         self._serialpath = self.entry.data[CONF_SERIALPATH]
@@ -878,11 +880,11 @@ class DomBusHub:
             del self.counterTime[u]
 
 
-def configFileWriteNow(hass):
+def configFileWriteNow(config):
     """Write config json file for DomBus buses and attached devices."""
-    filename = "config/creasoldombus.json"
+    filename = "creasoldombus.json"
     with open(filename, "w") as fd:
-        json.dump(hass.data[DOMAIN], fd)
+        json.dump(config, fd)
 
 
 def configFileInit(hass, entry):
@@ -914,7 +916,7 @@ def configFileInit(hass, entry):
     if DOMAIN in hass.data:
         return  # json file already loaded into hass.data[DOMAIN]
 
-    filename = "config/creasoldombus.json"
+    filename = "creasoldombus.json"
     try:
         fd = open(filename)
     except FileNotFoundError:
@@ -923,7 +925,7 @@ def configFileInit(hass, entry):
             "Error opening config file " + filename + ": initializing config dict...",
         )
     else:
-        hass.data[DOMAIN] = json.load(fd)
+        _config = json.load(fd)
 
     # init hass.data[DOMAIN] if not already exists
     config = hass.data.setdefault(DOMAIN, {})
@@ -939,15 +941,13 @@ def configFileInit(hass, entry):
             config[BUSNUM]["next"] += 1
     # check that config has inside a dict for the current bus with the list of devices
     if entry.entry_id not in config:
-        config[entry.entry_id] = {"entities": {}}
+        config[entry.entry_id] = {CONF_DEVICES: {}}
     # write the structure again
-    configFileWriteNow(hass)
+    configFileWriteNow(config)
 
 
 async def async_setup_entry(hass, entry) -> bool:
     """Set up Creasol DomBus component."""
-    # load config json file into hass.data[DOMAIN] (for all buses)
-    configFileInit(hass, entry)
 
     async def async_send_command(call):
         """Send DomBus command."""
@@ -982,6 +982,8 @@ async def async_setup_entry(hass, entry) -> bool:
     hub.connect()
 
     async_dispatcher_connect(hass, SIGNAL_EVENT, event_callback)
+    # load config json file into hass.data[DOMAIN]
+    # configFileInit(hass, entry)
     # load entity_reg and dev_reg
     # to get an entity or device, use
     # entity = entity_reg.async_get("entity_id")

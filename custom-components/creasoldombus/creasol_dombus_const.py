@@ -1,7 +1,12 @@
 """Some constants used by DomBus protocol."""
 
 #if 1, when a module does not transmit for more than 15 minutes (MODULE_ALIVE_TIME), it will appear in red (TimedOut)
-PROTOCOL1_WITH_PERIODIC_TX=0    # set to 1 if all existing modules transmit their status periodically (oldest modules with protocol 1 did not)
+PROTOCOL1_WITH_PERIODIC_TX = 0    # set to 1 if all existing modules transmit their status periodically (oldest modules with protocol 1 did not)
+
+# if False, it's possibile to connect this controller to a bus with another controller already working.
+# in this case this controller can read inputs and sensors, and control some outputs interfering just a little with the existing controller.
+# Set to True to get this the only one controller on the bus    
+TXACK_ENABLE = True    
 
 PORTSDISABLEDFILE = "creasoldombus_%d_portsDisabled.json"
 PORTS_MAX = 32
@@ -23,10 +28,11 @@ CMD_ACK = 0x08
 
 TX_RETRY = 10  # max number of retries
 TX_RETRY_TIME = 80  # ms: retry every TX_RETRY_TIME * 2^retry
-PERIODIC_STATUS_INTERVAL = (
-    300  # seconds: refresh output status to device every 5 minutes
-)
-MODULE_ALIVE_TIME = 900  # if no frame is received in this time, module is considered dead (and periodic output status will not be transmitted)
+# seconds: refresh output status to device every 5 minutes
+PERIODIC_STATUS_INTERVAL = 300  
+
+# if no frame is received in this time, module is considered dead (and periodic output status will not be transmitted)
+MODULE_ALIVE_TIME = 900  
 
 CMD_CONFIG = 0x00  # Config port
 CMD_GET = 0x10  # Get status

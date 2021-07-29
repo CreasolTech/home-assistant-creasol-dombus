@@ -1,6 +1,7 @@
 {
   "domain": "creasoldombus",
-  "name": "Creasol DomBus RS485 modules, I/O/S",
+  "name": "Creasol DomBus RS485 modules",
+  "version": "1.0",
   "config_flow": true,
   "documentation": "https://www.home-assistant.io/integrations/creasoldombus",
   "requirements": [
