@@ -5,3 +5,6 @@ MANUFACTURER = "Creasol www.creasol.it"
 BUSNUM = "busnum"
 CONF_SERIALPATH = "serialpath"
 CONF_SERIALPATH_MANUALLY = "Enter serial port manually"
+
+#Set the heartbeat interval in seconds
+CHECK_HEARTBEAT_INTERVAL = 5
