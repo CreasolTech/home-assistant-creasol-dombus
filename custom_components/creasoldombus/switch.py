@@ -5,41 +5,24 @@ import logging
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import CONF_DEVICES
+# import homeassistant.helpers.config_validation as cv
 
 from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, CONF_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
 platform = "switch"
 
-
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up switches."""
-
+    """Set up the platform."""
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Add the switch entities."""
-    devices = []
-    _LOGGER.info("Setup switch entities...")
-    for device_id, config in hass.data[DOMAIN][config_entry.entry_id][
-        CONF_DEVICES
-    ].items():
-        _LOGGER.info("new entity: device_id=%06x, config=%s", device_id, config)
-        if config["porttype"] == dbc.PORTTYPE_OUT_RELAY_LP or (
-            config["porttype"] == dbc.PORTTYPE_OUT_DIGITAL
-        ):
-            device = DomBusSwitch(device_id, **config)
-            devices.append(device)
-    async_add_entities(devices, update_before_add=True)
-    _LOGGER.info(
-        "Store async_add_entity in hass.data[DOMAIN][config_entry.entry_id][async_add_entity]"
-    )
-    # check that hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] exists:
-    # it will contains a dictionary with async_add_entities function for each platform
-    if "async_add_entities" not in hass.data[DOMAIN][config_entry.entry_id]:
-        hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] = {}
-    hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"][platform] = async_add_entities
+    """Add entities."""
+    # save async_add_entity method for this platform, used to add new entities in the future
+    if platform not in hass.data[DOMAIN]["async_add_entities"]:
+        hass.data[DOMAIN]["async_add_entities"][platform] = {}
+    hass.data[DOMAIN]["async_add_entities"][platform][config_entry.entry_id] = async_add_entities
 
 
 class DomBusSwitch(SwitchEntity):
@@ -60,7 +43,7 @@ class DomBusSwitch(SwitchEntity):
         self._hub = hub
         self._unique_id = unique_id
         self.entity_id = f"{platform}.{unique_id}"
-        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID) = port_list
+        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID, self._platform) = port_list
         self._name = name
         (self._porttype, self._portopt) = porttype_list
         self._state = state

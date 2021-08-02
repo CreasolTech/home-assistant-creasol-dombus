@@ -1,4 +1,4 @@
-"""Switch platform."""
+"""Sensor platform."""
 # import voluptuous as vol
 
 import logging
@@ -14,36 +14,21 @@ from homeassistant.const import (
 )
 
 from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, CONF_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
 platform = "sensor"
 
-
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the sensors."""
-
+    """Set up the platform."""
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Add the sensor entities."""
-    devices = []
-    _LOGGER.debug("Setup sensor entities...")
-    for device_id, config in hass.data[DOMAIN][config_entry.entry_id][
-        CONF_DEVICES
-    ].items():
-        if config["porttype"] == dbc.PORTTYPE_SENSOR_HUM or (
-            config["porttype"] == dbc.PORTYPE_SENSOR_TEMP
-        ):
-            _LOGGER.debug("Restore sensor %s from config", config["name"])
-            device = DomBusSensor(device_id, **config)
-            devices.append(device)
-    async_add_entities(devices, update_before_add=True)
-    # check that hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] exists:
-    # it will contains a dictionary with async_add_entities function for each platform
-    if "async_add_entities" not in hass.data[DOMAIN][config_entry.entry_id]:
-        hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] = {}
-    hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"][platform] = async_add_entities
+    """Add entities."""
+    # save async_add_entity method for this platform, used to add new entities in the future
+    if platform not in hass.data[DOMAIN]["async_add_entities"]:
+        hass.data[DOMAIN]["async_add_entities"][platform] = {}
+    hass.data[DOMAIN]["async_add_entities"][platform][config_entry.entry_id] = async_add_entities
 
 
 class DomBusSensor(RestoreEntity, SensorEntity):
@@ -65,7 +50,7 @@ class DomBusSensor(RestoreEntity, SensorEntity):
         self._hub = hub
         self._unique_id = unique_id
         self.entity_id = f"{platform}.{unique_id}"
-        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID) = port_list
+        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID, self._platform) = port_list
         self._name = name
         (self._porttype, self._portopt) = porttype_list
         self._state = state
@@ -75,8 +60,6 @@ class DomBusSensor(RestoreEntity, SensorEntity):
         self._assumed = False
         self.last_reset = 0
         self.power = 0
-
-        _LOGGER.debug("DomBusSensor = " + str(self))
 
     async def async_added_to_hass(self):
         """Handle entity which will be added."""

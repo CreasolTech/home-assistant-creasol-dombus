@@ -1,18 +1,14 @@
 """Binary sensor platform."""
-import voluptuous as vol
+# import voluptuous as vol
 
 import logging
 
-from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
-)
-from homeassistant.const import (
-    CONF_DEVICES,
-)
-import homeassistant.helpers.config_validation as cv
+from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.const import CONF_DEVICES
+# import homeassistant.helpers.config_validation as cv
 
 from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, CONF_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,21 +19,23 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Add entities."""
-    devices = []
-    for device_id, config in hass.data[DOMAIN][config_entry.entry_id][
-        CONF_DEVICES
-    ].items():
-        _LOGGER.debug("new entity: device_id=%06x, config=%s", device_id, config)
-        if config["porttype"] == dbc.PORTTYPE_IN_DIGITAL:
-            device = DomBusBinarySensor(device_id, **config)
-            devices.append(device)
-    async_add_entities(devices, update_before_add=True)
-    # check that hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] exists:
-    # it will contains a dictionary with async_add_entities function for each platform
-    if "async_add_entities" not in hass.data[DOMAIN][config_entry.entry_id]:
-        hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] = {}
-    hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"][platform] = async_add_entities
-
+#    entities = []
+#    entityConfigs = hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES][config_entry.entry_id]
+#    for device_id, config in entityConfigs.items():
+#        porttype = config[3][0]
+#        portname = config[2]
+#        if porttype == dbc.PORTTYPE_IN_DIGITAL:
+#            _LOGGER.debug("Adding saved entity for platform %s: id=%s, name=%s", platform, device_id, portname)
+#            entity = DomBusBinarySensor(hass.data[DOMAIN]["hub"][config_entry.entry_id], *config)
+#            entities.append(entity)
+#            hass.data[DOMAIN][CONF_ENTITIES][config_entry.entry_id].append(entity)
+#
+#    async_add_entities(entities, update_before_add=True)
+#    # save async_add_entity method for this platform, used to add new entities in the future
+    if platform not in hass.data[DOMAIN]["async_add_entities"]:
+        hass.data[DOMAIN]["async_add_entities"][platform] = {}
+    hass.data[DOMAIN]["async_add_entities"][platform][config_entry.entry_id] = async_add_entities
+    
 
 class DomBusBinarySensor(BinarySensorEntity):
     """Representation of binary sensor."""
@@ -57,7 +55,7 @@ class DomBusBinarySensor(BinarySensorEntity):
         self._hub = hub
         self._unique_id = unique_id
         self.entity_id = f"{platform}.{unique_id}"
-        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID) = port_list
+        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID, self._platform) = port_list
         self._name = name
         (self._porttype, self._portopt) = porttype_list
         self._state = state

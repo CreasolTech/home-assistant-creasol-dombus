@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import time
+from datetime import timedelta
 
 import serial_asyncio
 import voluptuous as vol
@@ -13,6 +14,7 @@ from homeassistant.const import (
     CONF_COMMAND,
     CONF_DEVICE_ID,
     CONF_DEVICES,
+    CONF_ENTITIES,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_ENERGY,
@@ -22,7 +24,8 @@ from homeassistant.const import (
 )
 
 # import homeassistant.core as ha
-from homeassistant.core import callback
+from homeassistant.core import callback, HassJob
+from homeassistant.helpers import event
 
 # from homeassistant.helpers.entity_platform import EntityPlatform
 # from homeassistant.helpers.storage import Store     # Store method to save content
@@ -31,9 +34,10 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
 )
+from homeassistant.util.dt import utcnow
 
 from . import creasol_dombus as dombus, creasol_dombus_const as dbc
-from .const import BUSNUM, CONF_SERIALPATH, DOMAIN
+from .const import CONF_BUSNUM, CONF_SAVED, CONF_SERIALPATH, DOMAIN, HEARTBEAT_INTERVAL
 from .binary_sensor import DomBusBinarySensor
 from .sensor import DomBusSensor
 from .switch import DomBusSwitch
@@ -51,7 +55,7 @@ PLATFORMS = [
     "binary_sensor",
     #    "climate",
     "light",
-    "number",
+    # "number",
     "sensor",
     "switch",
     #    "water_heater",
@@ -78,10 +82,22 @@ class DomBusHub:
         self.logLevel = dbc.LOG_DUMPALL  # force dumping everything
         self._hass = hass
         self.entry = entry
+        self._entry_id = entry.entry_id
         # init hass.data[DOMAIN] if not already exists
         configFileInit(hass, entry)
-        self._config = hass.data[DOMAIN][self.entry.entry_id]
-        self._busnum = hass.data[DOMAIN][BUSNUM][entry.entry_id]
+        """ hass.data[DOMAIN] structure:
+            hass.data[DOMAIN][CONF_SAVED]=structure saved in non-volatile memory:
+            hass.data[DOMAIN][CONF_SAVED][CONF_BUSNUM]={entry_id1: 1, entry_id2: 2, "next": 3}  # associate numeric id to the corresponding entry_id of the component
+            hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]={ entry_id1: [ list of entities config for bus 1 ], entry_id2: [ list of entities config for bus2 ], ...}
+            hass.data[DOMAIN][CONF_ENTITIES]={ entry_id1: [ list of entities for bus1 ], entry_id2: [ list of entities for bus2 ], ...}
+            hass.data[DOMAIN]["hub"]={ entry_id1: self, entry_id2: hub2 }
+        """
+        if "hub" not in hass.data[DOMAIN]:
+            hass.data[DOMAIN]["hub"] = {}
+        hass.data[DOMAIN]["hub"][self._entry_id] = self
+        self._saved_config = hass.data[DOMAIN][CONF_SAVED]
+        self._entities = hass.data[DOMAIN][CONF_ENTITIES][self._entry_id]
+        self._busnum = self._saved_config[CONF_BUSNUM][self._entry_id]
         self._serialpath = self.entry.data[CONF_SERIALPATH]
         self.loop = loop if loop else asyncio.get_event_loop()
         self.dombusprotocol = None
@@ -93,7 +109,8 @@ class DomBusHub:
         self.devID = 0
         self.deviceAddr = 0
         self.portsDisabled = 0
-        self.portsDisabledWrite = 0
+        self.portsDisabledWrite = 0     # number of heartbeat cycles after which portsDisabled must be saved
+        self.configFileWrite = 0        # number of heartbeat cycles after which hass.data[DOMAIN] must be saved
         # txQueue[frameAddr].append([cmd,cmdLen,cmdAck,port,args,retries])
         self.txQueue = {}  # tx queue for each module
         self.modules = (
@@ -109,6 +126,8 @@ class DomBusHub:
         self.protocol = 2
         self.frameAddr = 0
         self.port = 0
+        self._job = HassJob(self._heartbeat)
+        self._schedule_refresh()
 
     async def _connect(self):
         """Asyncio connection serial port."""
@@ -191,10 +210,9 @@ class DomBusHub:
 
     def getEntity(self):
         """Return the saved entity, if exist, corresponding to the current self.uniqueID (computed by getDeviceID)."""
-        if self.uniqueID in self._config[CONF_DEVICES]:
-            return self._config[CONF_DEVICES][
-                self.uniqueID
-            ]  # entity class saved in hass.data[DOMAIN][entry_id][CONF_DEVICES]
+        if self.uniqueID in self._entities:
+            # entity class reference saved in hass.data[DOMAIN][CONF_ENTITIES][entry_id]
+            return self._entities[self.uniqueID]
         else:
             return None
 
@@ -310,18 +328,41 @@ class DomBusHub:
                     else:
                         self.txQueueAdd(dbc.CMD_SET, 2, 0, [d.nValue], dbc.TX_RETRY)
 
-    def registerEntity(self, platform, entity):
+    def registerEntity(self, entityConfig):
         """Register a new entity and save it in memory."""
-        if self.port > dbc.PORTS_MAX:
+        uniqueID = entityConfig[0]
+        port = entityConfig[1][3]
+        platform = entityConfig[1][5]
+        if port > dbc.PORTS_MAX:
             return  # ignore: maybe this is a CONFIG command to ask for configuration
-        if CONF_DEVICES not in self._config:
-            self._config[CONF_DEVICES] = {}
-        self._config[CONF_DEVICES][self.uniqueID] = entity
+        self._saved_config[CONF_DEVICES][self._entry_id][uniqueID] = entityConfig
+        self.configFileWriteSched()     # save hass.data[DOMAIN] in 5 * HEARTBEAT_INTERVAL seconds
+
         # call async_add_entities for this entity and this platform, to register the new entity
-        _LOGGER.info(
-            "Register new entity for platform=%s, uniqueID=%s", platform, self.uniqueID
-        )
-        self._config["async_add_entities"][platform]((entity,), True)
+        platformOk = True
+        if (platform == "binary_sensor"):
+            entity = DomBusBinarySensor(self, *entityConfig)
+        elif (platform == "light"):
+            entity = DomBusLight(self, *entityConfig)
+        elif (platform == "sensor"):
+            entity = DomBusSensor(self, *entityConfig)
+        elif (platform == "switch"):
+            entity = DomBusSwitch(self, *entityConfig)
+        else:
+            _LOGGER.warn("Platform %s not implemented", platform)
+            platformOk = False
+        if platformOk:
+            # store async_add_entity reference in hass.data[DOMAIN]["async_add_entities"][platform][entry.entry_ID]
+            if ("async_add_entities" in self._hass.data[DOMAIN] and
+                    platform in self._hass.data[DOMAIN]["async_add_entities"] and
+                    self._entry_id in self._hass.data[DOMAIN]["async_add_entities"][platform]):
+                self._entities[uniqueID] = entity
+                _LOGGER.info(
+                    "Register new entity for platform=%s, uniqueID=%s, name=%s", platform, uniqueID, entity.name
+                )
+                self._hass.data[DOMAIN]["async_add_entities"][platform][self._entry_id]((entity,), True)
+            else:
+                _LOGGER.warning("async_add_entities() not already saved in hass.data[DOMAIN][async_add_entities][%s][entry_id]", platform)
 
     def parseFrame(self, protocol, frameAddr, dstAddr, rxbuffer):
         """Get frame from DomBusProtocol and parse it."""
@@ -380,7 +421,7 @@ class DomBusHub:
                         # never sent Config request, or sent long time ago
                         self.modules[self.frameAddr][
                             dbc.LASTCONFIG
-                        ] = 60  # timeout, decreased by heartbeat()
+                        ] = 60  # timeout, decreased by _heartbeat()
                         self.txQueueAskConfig()
                     else:
                         # configuration request is not possible: transmits ACK to avoid retransmissions of the same frame
@@ -490,89 +531,89 @@ class DomBusHub:
                                             descr += key + ","
                                     if descr != "":
                                         descr = descr[:-1]  # remove last comma ,
-                                    # create entity
+                                    # create entityConfig
                                     if portType & (dbc.PORTTYPE_IN_DIGITAL | dbc.PORTTYPE_IN_AC):
                                         # binary sensor
-                                        entity = DomBusBinarySensor(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "binary_sensor"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
-                                        )
-                                        self.registerEntity("binary_sensor", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     elif portType & (
                                         dbc.PORTTYPE_OUT_DIGITAL
                                         | dbc.PORTTYPE_OUT_RELAY_LP
                                         | dbc.PORTTYPE_OUT_BUZZER
                                     ):
                                         # relay output
-                                        entity = DomBusSwitch(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "switch"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
-                                        )
-                                        self.registerEntity("switch", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_OUT_DIMMER:
                                         # dimmer output
-                                        entity = DomBusLight(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "light"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             255,    # TODO: restore brightness stored in config
-                                        )
-                                        self.registerEntity("light", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_OUT_ANALOG:
                                         # 0-10V analog outputdd
-                                        entity = DomBusLight(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "light"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
-                                        )
-                                        self.registerEntity("light", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_SENSOR_TEMP:
                                         # temperature
-                                        entity = DomBusSensor(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "sensor"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             25,  # dummy temperature
                                             DEVICE_CLASS_TEMPERATURE,
                                             None,  # icon
                                             TEMP_CELSIUS,
-                                        )
-                                        self.registerEntity("sensor", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_SENSOR_HUM:
                                         # humidity
-                                        entity = DomBusSensor(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "sensor"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             50,  # dummy humidity
                                             DEVICE_CLASS_HUMIDITY,
                                             None,  # icon
                                             PERCENTAGE,
-                                        )
-                                        self.registerEntity("sensor", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_IN_COUNTER:
                                         # counter
-                                        entity = DomBusSensor(
-                                            self, self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID],
+                                        entityConfig = [
+                                            self.uniqueID,
+                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "sensor"],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             0,  # counter value TODO: restore from storage
                                             DEVICE_CLASS_ENERGY,
                                             None,  # icon
                                             ENERGY_KILO_WATT_HOUR,
-                                        )
-                                        self.registerEntity("sensor", entity)
+                                        ]
+                                        self.registerEntity(entityConfig)
                                     else:
-                                        # entity cannot be added to HA
+                                        # entityConfig cannot be added to HA
                                         _LOGGER.warning("Entity cannot be added: devID=%s, name=%s, porttype=%s", self.devID, portName, dbc.PORT_TYPENAME[portType])
 
                                     # TODO: other types....
@@ -642,7 +683,6 @@ class DomBusHub:
                                             entity.setstate(entity._state + arg1 / 1000.0)   # arg1 = number of Wh => convert to kWh
                                         else:
                                             entity.setstate(arg1)
-                                        _LOGGER.debug("COUNTER: _state = %s", str(entity.state))
                                         # Compute power?
                                         if (entity.device_class == DEVICE_CLASS_ENERGY):
                                             ms = int(time.time() * 1000)
@@ -722,7 +762,7 @@ class DomBusHub:
             )  # number of seconds since last RXed frame
             # timeFromLastStatus = (sec - module[dbc.LASTSTATUS])  # number of seconds since last TXed output status
             protocol = module[dbc.LASTPROTOCOL]  # 1=old protocol, 2=new protocol
-            if len(self.txQueue[frameAddr]) > 0:
+            if frameAddr in self.txQueue and len(self.txQueue[frameAddr]) > 0:
                 retry = module[
                     dbc.LASTRETRY
                 ]  # number of retris (0,1,2,3...): used to compute the retry period
@@ -844,7 +884,16 @@ class DomBusHub:
                 )  # set current time + extra seconds to avoid all devices been refresh together
                 self.txOutputsStatus(self.Devices, olderFrameAddr)
 
-    def heartbeat(self, Devices):
+    @callback
+    def _schedule_refresh(self):
+        """Schedule _heartbeat() every HEARTBEAT_INTERVAL seconds."""
+        event.async_track_point_in_utc_time(
+            self._hass,
+            self._job,  # _heartbeat()
+            utcnow().replace(microsecond=0) + timedelta(seconds=HEARTBEAT_INTERVAL),
+        )
+
+    def _heartbeat(self, Devices):
         """Periodically update status and transmit."""
         # function called periodically
         # should I save portsDisabled dict on json file?
@@ -853,7 +902,13 @@ class DomBusHub:
             if self.portsDisabledWrite == 0:
                 self.portsDisabledWriteNow()  # Write json file with list of disabled ports
 
-        # Decrease dbc.LASTCONFIG counter for each module
+        # should I write the hass.data[DOMAIN] to the config file?
+        if self.configFileWrite > 0:
+            self.configFileWrite -= 1
+            if self.configFileWrite == 0:
+                configFileWriteNow(self._saved_config)
+
+        # Decrease dbc.LASTCONFIG counter for each module (last time we sent the CMD_CONFIG command to ask configuration)
         for frameAddr in self.modules:
             if self.modules[frameAddr][dbc.LASTCONFIG] > 0:
                 self.modules[frameAddr][dbc.LASTCONFIG] -= 1
@@ -861,6 +916,7 @@ class DomBusHub:
         # check counters: if configured as kWh => update decrease power in case of timeout
         delmodules = []
         for u in self.counterTime:
+            # TODO
             if Devices[u].Type == 243 and Devices[u].SubType == 29:  # kWh meter
                 ms = int(time.time() * 1000)
                 msdiff = ms - self.counterTime[u]  # elapsed time since last value
@@ -879,42 +935,40 @@ class DomBusHub:
         for u in delmodules:
             del self.counterTime[u]
 
+        # Schedule heartbeat again in HEARTBEAT_INTERVAL seconds
+        if not self._hass.is_stopping:
+            self._schedule_refresh()
+
+    def configFileWriteSched(self):
+        """Schedule config file writing."""
+        if self.configFileWrite == 0:   # save hass.data[DOMAIN] in N * HEARTBEAT_INTERVAL seconds
+            self.configFileWrite = 2
+
 
 def configFileWriteNow(config):
     """Write config json file for DomBus buses and attached devices."""
     filename = "creasoldombus.json"
     with open(filename, "w") as fd:
-        json.dump(config, fd)
+        json.dump(config, fd, indent=2, sort_keys=True)
 
 
 def configFileInit(hass, entry):
     """Read and initialize config json file for DomBus buses and attached devices.
 
-    hass.data[DOMAIN]={
-        BUSNUM: { entry_id1: 1, entry_id2: 2, ...} #assoc a unique number to each bus
-        entry_id1: {
-            CONF_DEVICES: { #devices attached to first bus
-                # PORTCAP=port capabilities. Simple relay with inverted output
-                device_id1: {PORTCAP: mask, PORTTYPE: OUT_RELAY_LP, PORTOPTS: INVERTED},
-
-                #analog input where the shown value = A * DeviceValue + B
-                device_id2: {PORTCAP: mask, PORTTYPE: IN_ANALOG, A: 0.001, B: 0}
-
-                #shutter motor output, with 25s closing time and 30s opening time
-                device_id3: {PORTCAP: mask, PORTTYPE: OUT_BLIND, TIMECLOSE: 25, TIMEOPEN: 30}
-            }
-        }
-        entry_id2: {
-            CONF_DEVICES: { #devices attached to the second bus
-                device_id1: {PORTTYPE: OUT_RELAY_LP, PORTCAPABILITIES: mask },
-                device_id2: {PORTTYPE: IN_ANALOG, A: 0.001, B: 0, PORTCAPABILITIES: mask } #value = A * x + B
-                device_id3: {PORTTYPE: OUT_BLIND, TIMECLOSE: 25, TIMEOPEN: 30, PORTCAPABILITIES: mask } #blind
-            }
-        }
-    }
+    hass.data[DOMAIN] structure:
+        hass.data[DOMAIN][CONF_SAVED]=structure saved in non-volatile memory:
+        hass.data[DOMAIN][CONF_SAVED][CONF_BUSNUM]={entry_id1: 1, entry_id2: 2, "next": 3}  # associate numeric id to the corresponding entry_id of the component
+        hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]={ entry_id1: [ list of entities config for bus 1 ], entry_id2: [ list of entities config for bus2 ], ...}
+        hass.data[DOMAIN][CONF_ENTITIES]={ entry_id1: [ list of entities for bus1 ], entry_id2: [ list of entities for bus2 ], ...}
     """
+
     if DOMAIN in hass.data:
         return  # json file already loaded into hass.data[DOMAIN]
+
+    # init hass.data[DOMAIN] if not already exists
+    data = hass.data.setdefault(DOMAIN, {})
+    if CONF_SAVED not in data:
+        data[CONF_SAVED] = {}
 
     filename = "creasoldombus.json"
     try:
@@ -925,25 +979,45 @@ def configFileInit(hass, entry):
             "Error opening config file " + filename + ": initializing config dict...",
         )
     else:
-        _config = json.load(fd)
-
-    # init hass.data[DOMAIN] if not already exists
-    config = hass.data.setdefault(DOMAIN, {})
-    # check if BUSNUM dictionary exists (associate a bus number to the current bus)
-    if BUSNUM not in config:
-        # BUSNUM does not exist: set the current bus number = 1
-        config[BUSNUM] = {entry.entry_id: 1, "next": 2}
+        try:
+            data[CONF_SAVED] = json.load(fd)
+        except ValueError:
+            _LOGGER.warn("Error loading json file")
+    _LOGGER.debug("data[CONF_SAVED]=%s", data[CONF_SAVED])
+    # check if CONF_BUSNUM dictionary exists (associate a bus number to the current bus)
+    if CONF_BUSNUM not in data[CONF_SAVED]:
+        # CONF_BUSNUM does not exist: set the current bus number = 1
+        data[CONF_SAVED][CONF_BUSNUM] = {entry.entry_id: 1, "next": 2}
     else:
-        # check the BUSNUM for this bus
-        if entry.entry_id not in config[BUSNUM]:
-            # BUSNUM not set for the current bus => initialize it to the next available value
-            config[BUSNUM][entry.entry_id] = config[BUSNUM]["next"]
-            config[BUSNUM]["next"] += 1
+        # check the CONF_BUSNUM for this bus
+        if entry.entry_id not in data[CONF_SAVED][CONF_BUSNUM]:
+            # CONF_BUSNUM not set for the current bus => initialize it to the next available value
+            data[CONF_SAVED][CONF_BUSNUM][entry.entry_id] = data[CONF_SAVED][CONF_BUSNUM]["next"]
+            data[CONF_SAVED][CONF_BUSNUM]["next"] += 1
+
+    if CONF_DEVICES not in data[CONF_SAVED]:
+        data[CONF_SAVED][CONF_DEVICES] = {}
+
     # check that config has inside a dict for the current bus with the list of devices
-    if entry.entry_id not in config:
-        config[entry.entry_id] = {CONF_DEVICES: {}}
+    if entry.entry_id not in data[CONF_SAVED][CONF_DEVICES]:
+        data[CONF_SAVED][CONF_DEVICES][entry.entry_id] = {}
+
+    if CONF_DEVICES not in data[CONF_SAVED]:
+        data[CONF_SAVED][CONF_DEVICES] = {}
+
+    # check that entity structure exists
+    if CONF_ENTITIES not in data:
+        data[CONF_ENTITIES] = {}
+
+    if entry.entry_id not in data[CONF_ENTITIES]:
+        data[CONF_ENTITIES][entry.entry_id] = {}
+
+    # check data["async_add_entities"]
+    if "async_add_entities" not in data:
+        data["async_add_entities"] = {}
+
     # write the structure again
-    configFileWriteNow(config)
+    configFileWriteNow(data[CONF_SAVED])
 
 
 async def async_setup_entry(hass, entry) -> bool:
@@ -990,9 +1064,14 @@ async def async_setup_entry(hass, entry) -> bool:
     # device = device_reg.async_get(entity.device_id)
 
     for platform in PLATFORMS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, platform)
-        )
+        await hass.config_entries.async_forward_entry_setup(entry, platform)
+        # hass.async_create_task(
+        #    hass.config_entries.async_forward_entry_setup(entry, platform)
+        # )
+
+    # Now register all entities saved in hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]
+    for device_id, config in hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES][entry.entry_id].items():
+        hub.registerEntity(config)
 
     hub.rxEnabled = True  # Enable RX when all platforms are created
     return True
