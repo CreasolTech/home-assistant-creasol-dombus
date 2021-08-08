@@ -5,13 +5,17 @@ Home Assistant custom component to manage Creasol DomBus modules to realize a co
 
 # Installation
 Copy contents of custom_components folder to your home-assistant config folder or install through HACS.
-After reboot of Home-Assistant, this integration can be added through the Configuration -> Integrations -> + ADD INTEGRATION 
 
 ```console
 cd /tmp
 git clone https://github.com/CreasolTech/home-assistant-creasol-dombus.git
 cp -a home-assistant-creasol-dombus/custom_components HADIR/config/
+# command for Hassio:  cp -a home-assistant-creasol-dombus/custom_components /config/
+ha core restart
 ```
+
+After reboot of Home-Assistant, this integration can be added through the Configuration -> Integrations -> + ADD INTEGRATION 
+and selecting Creasol DomBus integration.
 
 # Creasol DomBus modules
 Domotic modules, optimized for very low power consumption and high reliability, that can be connected together by wired bus, using a common alarm shielded cable within 4 wires: 
