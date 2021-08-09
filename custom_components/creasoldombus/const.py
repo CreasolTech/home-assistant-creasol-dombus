@@ -7,5 +7,5 @@ CONF_SAVED = "saved"
 CONF_SERIALPATH = "serialpath"
 CONF_SERIALPATH_MANUALLY = "Enter serial port manually"
 
-#Set the heartbeat interval in seconds
+# Set the heartbeat interval in seconds
 HEARTBEAT_INTERVAL = 5

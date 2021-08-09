@@ -9,6 +9,7 @@ from homeassistant.components.number import (
 from homeassistant.const import (
     CONF_DEVICES,
 )
+
 # import homeassistant.helpers.config_validation as cv
 
 from . import creasol_dombus_const as dbc
@@ -31,8 +32,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     ].items():
         _LOGGER.debug("new entity: device_id=%06x, config=%s", device_id, config)
         if config["porttype"] & (
-            dbc.PORTTYPE_OUT_ANALOG |
-            dbc.PORTTYPE_SENSOR_DISTANCE
+            dbc.PORTTYPE_OUT_ANALOG | dbc.PORTTYPE_SENSOR_DISTANCE
         ):
             device = DomBusNumber(device_id, **config)
             devices.append(device)
@@ -41,7 +41,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     # it will contains a dictionary with async_add_entities function for each platform
     if "async_add_entities" not in hass.data[DOMAIN][config_entry.entry_id]:
         hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"] = {}
-    hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"][platform] = async_add_entities
+    hass.data[DOMAIN][config_entry.entry_id]["async_add_entities"][
+        platform
+    ] = async_add_entities
 
 
 class DomBusNumber(NumberEntity):
@@ -66,17 +68,23 @@ class DomBusNumber(NumberEntity):
         self._hub = hub
         self._unique_id = unique_id
         self.entity_id = f"{platform}.{unique_id}"
-        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID) = port_list
+        (
+            self._busnum,
+            self._protocol,
+            self._frameAddr,
+            self._port,
+            self._devID,
+        ) = port_list
         self._name = name
         (self._porttype, self._portopt) = porttype_list
         self._state = state
         self._device_class = device_class
         self._icon = icon
         self._assumed = True
-        self._value = 0         # setvalue
-        self._min_value = 0     # min_value
-        self._max_value = 100   # max_value
-        self._step_value = 1    # step_value
+        self._value = 0  # setvalue
+        self._min_value = 0  # min_value
+        self._max_value = 100  # max_value
+        self._step_value = 1  # step_value
 
     @property
     def device_info(self):
@@ -139,12 +147,12 @@ class DomBusNumber(NumberEntity):
     @property
     def step(self) -> float:
         """Return the increment/decrement step."""
-#        step = DEFAULT_STEP
-#        value_range = abs(self.max_value - self.min_value)
-#        if value_range != 0:
-#            while value_range <= step:
-#                step /= 10.0
-#        return step
+        #        step = DEFAULT_STEP
+        #        value_range = abs(self.max_value - self.min_value)
+        #        if value_range != 0:
+        #            while value_range <= step:
+        #                step /= 10.0
+        #        return step
         return self._step_value
 
     @property

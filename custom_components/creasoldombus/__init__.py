@@ -42,6 +42,7 @@ from .binary_sensor import DomBusBinarySensor
 from .sensor import DomBusSensor
 from .switch import DomBusSwitch
 from .light import DomBusLight
+
 # from .number import DomBusNumber
 
 # from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -77,7 +78,9 @@ class DomBusHub:
 
     def __init__(self, hass, entry, loop=None):
         """Initialize."""
-        self.txAckEnabled = dbc.TXACK_ENABLE  # DEBUG: if False, does not transmit ACKs. Used when another controller is connected to the same bus
+        self.txAckEnabled = (
+            dbc.TXACK_ENABLE
+        )  # DEBUG: if False, does not transmit ACKs. Used when another controller is connected to the same bus
         self.rxEnabled = False
         self.logLevel = dbc.LOG_DUMPALL  # force dumping everything
         self._hass = hass
@@ -109,8 +112,12 @@ class DomBusHub:
         self.devID = 0
         self.deviceAddr = 0
         self.portsDisabled = 0
-        self.portsDisabledWrite = 0     # number of heartbeat cycles after which portsDisabled must be saved
-        self.configFileWrite = 0        # number of heartbeat cycles after which hass.data[DOMAIN] must be saved
+        self.portsDisabledWrite = (
+            0  # number of heartbeat cycles after which portsDisabled must be saved
+        )
+        self.configFileWrite = (
+            0  # number of heartbeat cycles after which hass.data[DOMAIN] must be saved
+        )
         # txQueue[frameAddr].append([cmd,cmdLen,cmdAck,port,args,retries])
         self.txQueue = {}  # tx queue for each module
         self.modules = (
@@ -218,14 +225,26 @@ class DomBusHub:
 
     def txQueueAddAck(self, cmd, cmdLen, cmdAck, args, retries=1, now=1):
         """Transmit ACK only if ACK are enabled: it's the same as txQueueAdd."""
-        if (self.txAckEnabled):
+        if self.txAckEnabled:
             self.txQueueAdd(cmd, cmdLen, cmdAck, args, retries, now)
 
     def txQueueAdd(self, cmd, cmdLen, cmdAck, args, retries=1, now=1):
         """Simplified function that call txQueueAddComplete() to send a frame to the module."""
-        self.txQueueAddComplete(self.protocol, self.frameAddr, cmd, cmdLen, cmdAck, self.port, args, retries, now)
+        self.txQueueAddComplete(
+            self.protocol,
+            self.frameAddr,
+            cmd,
+            cmdLen,
+            cmdAck,
+            self.port,
+            args,
+            retries,
+            now,
+        )
 
-    def txQueueAddComplete(self, protocol, frameAddr, cmd, cmdLen, cmdAck, port, args, retries=1, now=1):
+    def txQueueAddComplete(
+        self, protocol, frameAddr, cmd, cmdLen, cmdAck, port, args, retries=1, now=1
+    ):
         """Add a command in the tx queue for the specified module (frameAddr)."""
         # if that command already exists, update it
         # cmdLen=length of data after command (port+args[])
@@ -237,9 +256,7 @@ class DomBusHub:
                 protocol = self.modules[frameAddr][dbc.LASTPROTOCOL]
         if len(self.txQueue) == 0 or frameAddr not in self.txQueue:
             # create self.txQueue[self.frameAddr]
-            self.txQueue[frameAddr] = [
-                [cmd, cmdLen, cmdAck, port, args, retries]
-            ]
+            self.txQueue[frameAddr] = [[cmd, cmdLen, cmdAck, port, args, retries]]
         else:
             found = 0
             for f in self.txQueue[frameAddr]:
@@ -336,33 +353,44 @@ class DomBusHub:
         if port > dbc.PORTS_MAX:
             return  # ignore: maybe this is a CONFIG command to ask for configuration
         self._saved_config[CONF_DEVICES][self._entry_id][uniqueID] = entityConfig
-        self.configFileWriteSched()     # save hass.data[DOMAIN] in 5 * HEARTBEAT_INTERVAL seconds
+        self.configFileWriteSched()  # save hass.data[DOMAIN] in 5 * HEARTBEAT_INTERVAL seconds
 
         # call async_add_entities for this entity and this platform, to register the new entity
         platformOk = True
-        if (platform == "binary_sensor"):
+        if platform == "binary_sensor":
             entity = DomBusBinarySensor(self, *entityConfig)
-        elif (platform == "light"):
+        elif platform == "light":
             entity = DomBusLight(self, *entityConfig)
-        elif (platform == "sensor"):
+        elif platform == "sensor":
             entity = DomBusSensor(self, *entityConfig)
-        elif (platform == "switch"):
+        elif platform == "switch":
             entity = DomBusSwitch(self, *entityConfig)
         else:
             _LOGGER.warn("Platform %s not implemented", platform)
             platformOk = False
         if platformOk:
             # store async_add_entity reference in hass.data[DOMAIN]["async_add_entities"][platform][entry.entry_ID]
-            if ("async_add_entities" in self._hass.data[DOMAIN] and
-                    platform in self._hass.data[DOMAIN]["async_add_entities"] and
-                    self._entry_id in self._hass.data[DOMAIN]["async_add_entities"][platform]):
+            if (
+                "async_add_entities" in self._hass.data[DOMAIN]
+                and platform in self._hass.data[DOMAIN]["async_add_entities"]
+                and self._entry_id
+                in self._hass.data[DOMAIN]["async_add_entities"][platform]
+            ):
                 self._entities[uniqueID] = entity
                 _LOGGER.info(
-                    "Register new entity for platform=%s, uniqueID=%s, name=%s", platform, uniqueID, entity.name
+                    "Register new entity for platform=%s, uniqueID=%s, name=%s",
+                    platform,
+                    uniqueID,
+                    entity.name,
                 )
-                self._hass.data[DOMAIN]["async_add_entities"][platform][self._entry_id]((entity,), True)
+                self._hass.data[DOMAIN]["async_add_entities"][platform][self._entry_id](
+                    (entity,), True
+                )
             else:
-                _LOGGER.warning("async_add_entities() not already saved in hass.data[DOMAIN][async_add_entities][%s][entry_id]", platform)
+                _LOGGER.warning(
+                    "async_add_entities() not already saved in hass.data[DOMAIN][async_add_entities][%s][entry_id]",
+                    platform,
+                )
 
     def parseFrame(self, protocol, frameAddr, dstAddr, rxbuffer):
         """Get frame from DomBusProtocol and parse it."""
@@ -428,7 +456,7 @@ class DomBusHub:
                         self.txQueueAddAck(dbc.CMD_SET, 2, dbc.CMD_ACK, [arg1])
                 else:
                     # ports is disabled => send ACK anyway, to prevent useless retries
-                    self.txQueueAddAck(dbc.CMD_SET, 2, dbc.CMD_ACK, [arg1])    # Tx ACK
+                    self.txQueueAddAck(dbc.CMD_SET, 2, dbc.CMD_ACK, [arg1])  # Tx ACK
 
             if cmdAck:
                 # received an ack: remove cmd+arg1 from txQueue, if present
@@ -509,8 +537,7 @@ class DomBusHub:
                                     # unit found => remove TimedOut if set
                                     if self.port == 1:
                                         _LOGGER.info(
-                                            "Device %s is now active again",
-                                            self.devID
+                                            "Device %s is now active again", self.devID
                                         )
                                 #                                 Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=0)
                                 else:
@@ -532,11 +559,20 @@ class DomBusHub:
                                     if descr != "":
                                         descr = descr[:-1]  # remove last comma ,
                                     # create entityConfig
-                                    if portType & (dbc.PORTTYPE_IN_DIGITAL | dbc.PORTTYPE_IN_AC):
+                                    if portType & (
+                                        dbc.PORTTYPE_IN_DIGITAL | dbc.PORTTYPE_IN_AC
+                                    ):
                                         # binary sensor
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "binary_sensor"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "binary_sensor",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                         ]
@@ -549,7 +585,14 @@ class DomBusHub:
                                         # relay output
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "switch"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "switch",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                         ]
@@ -558,17 +601,31 @@ class DomBusHub:
                                         # dimmer output
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "light"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "light",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
-                                            255,    # TODO: restore brightness stored in config
+                                            255,  # TODO: restore brightness stored in config
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_OUT_ANALOG:
                                         # 0-10V analog outputdd
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "light"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "light",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                         ]
@@ -577,7 +634,14 @@ class DomBusHub:
                                         # temperature
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "sensor"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "sensor",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             25,  # dummy temperature
@@ -590,7 +654,14 @@ class DomBusHub:
                                         # humidity
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "sensor"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "sensor",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             50,  # dummy humidity
@@ -603,7 +674,14 @@ class DomBusHub:
                                         # counter
                                         entityConfig = [
                                             self.uniqueID,
-                                            [self._busnum, self.protocol, self.frameAddr, self.port, self.devID, "sensor"],
+                                            [
+                                                self._busnum,
+                                                self.protocol,
+                                                self.frameAddr,
+                                                self.port,
+                                                self.devID,
+                                                "sensor",
+                                            ],
                                             "[" + self.devID + "] " + portName,
                                             [portType, portOpt],
                                             0,  # counter value TODO: restore from storage
@@ -614,7 +692,12 @@ class DomBusHub:
                                         self.registerEntity(entityConfig)
                                     else:
                                         # entityConfig cannot be added to HA
-                                        _LOGGER.warning("Entity cannot be added: devID=%s, name=%s, porttype=%s", self.devID, portName, dbc.PORT_TYPENAME[portType])
+                                        _LOGGER.warning(
+                                            "Entity cannot be added: devID=%s, name=%s, porttype=%s",
+                                            self.devID,
+                                            portName,
+                                            dbc.PORT_TYPENAME[portType],
+                                        )
 
                                     # TODO: other types....
                             self.port += 1
@@ -627,7 +710,9 @@ class DomBusHub:
                             ].decode()
                             _LOGGER.info(
                                 "Module %s Rev.%s Addr=%x",
-                                strModule, strVersion, self.frameAddr,
+                                strModule,
+                                strVersion,
+                                self.frameAddr,
                             )
                             if self.frameAddr in self.modules:
                                 self.modules[self.frameAddr][
@@ -645,7 +730,9 @@ class DomBusHub:
                         if (
                             self.port == 0
                         ):  # port==0 => request from module to get status of all output!  NOT USED by any module, actually
-                            self.txQueueAddAck(dbc.CMD_GET, 1, dbc.CMD_ACK, [])    # Tx ACK
+                            self.txQueueAddAck(
+                                dbc.CMD_GET, 1, dbc.CMD_ACK, []
+                            )  # Tx ACK
                             if self.frameAddr in self.modules:
                                 self.modules[self.frameAddr][
                                     dbc.LASTSTATUS
@@ -655,7 +742,9 @@ class DomBusHub:
                         if entity is None:
                             if portDisabled == 1:
                                 # ports is disabled => send ACK anyway, to prevent useless retries
-                                self.txQueueAddAck(dbc.CMD_SET, 2, dbc.CMD_ACK, [arg1])    # Tx ACK
+                                self.txQueueAddAck(
+                                    dbc.CMD_SET, 2, dbc.CMD_ACK, [arg1]
+                                )  # Tx ACK
                         else:
                             # got a frame from a well known device
                             # device_reg = dr.async_get(self._hass)
@@ -666,32 +755,42 @@ class DomBusHub:
                                 #     dbc.PORTTYPE[dbc.PORTTYPE_OUT_DIGITAL]
                                 #     | dbc.PORTTYPE[dbc.PORTTYPE_OUT_RELAY_LP]
                                 # ):
-                                if (entity.porttype & (
-                                    dbc.PORTTYPE_OUT_DIGITAL |
-                                    dbc.PORTTYPE_IN_DIGITAL
-                                )):
+                                if entity.porttype & (
+                                    dbc.PORTTYPE_OUT_DIGITAL | dbc.PORTTYPE_IN_DIGITAL
+                                ):
                                     if arg1 == 0:
                                         if entity.is_on:
                                             entity.turn_off()
                                     else:
                                         if entity.is_on is False:
                                             entity.turn_on()
-                                elif (entity.porttype == dbc.PORTTYPE_IN_COUNTER):
+                                elif entity.porttype == dbc.PORTTYPE_IN_COUNTER:
                                     # Counter => arg1 contains the number of pulses received in the interval
-                                    if (arg1 != 0):  # at least 1 pulse received
-                                        if entity.unit_of_measurement == ENERGY_KILO_WATT_HOUR:
-                                            entity.setstate(entity._state + arg1 / 1000.0)   # arg1 = number of Wh => convert to kWh
+                                    if arg1 != 0:  # at least 1 pulse received
+                                        if (
+                                            entity.unit_of_measurement
+                                            == ENERGY_KILO_WATT_HOUR
+                                        ):
+                                            entity.setstate(
+                                                entity._state + arg1 / 1000.0
+                                            )  # arg1 = number of Wh => convert to kWh
                                         else:
                                             entity.setstate(arg1)
                                         # Compute power?
-                                        if (entity.device_class == DEVICE_CLASS_ENERGY):
+                                        if entity.device_class == DEVICE_CLASS_ENERGY:
                                             ms = int(time.time() * 1000)
                                             # check that counterTime[d.Unit] exists: used to set the last time a pulse was received.
                                             # Althought it's possible to save data into d.Options, it's much better to have a dict so it's possible to periodically check all counterTime
-                                            msdiff = ms - entity.last_reset     # elapsed time since last value
-                                            if (msdiff >= 2000):    # check that frames do not come too fast (HA busy?)
+                                            msdiff = (
+                                                ms - entity.last_reset
+                                            )  # elapsed time since last value
+                                            if (
+                                                msdiff >= 2000
+                                            ):  # check that frames do not come too fast (HA busy?)
                                                 # at least 2 seconds from last frame: ok
-                                                entity.power = int(arg1 * 3600000 / msdiff)
+                                                entity.power = int(
+                                                    arg1 * 3600000 / msdiff
+                                                )
                                             entity.last_reset = ms
 
                                 # transmit ACK to the bus
@@ -718,7 +817,9 @@ class DomBusHub:
                                 #                                    if (d.sValue!=str(Value)):
                                 #                                        d.Update(nValue=int(Value), sValue=str(Value))
                                 #                                    #Log(LOG_DEBUG,"Value="+str(a)+"*"+str(value)+"+"+str(b)+"="+str(Value))
-                                self.txQueueAddAck(dbc.CMD_SET, 3, dbc.CMD_ACK, [arg1, arg2, 0])
+                                self.txQueueAddAck(
+                                    dbc.CMD_SET, 3, dbc.CMD_ACK, [arg1, arg2, 0]
+                                )
 
                                 """
                                 if d.Type == dbc.PORTTYPE[dbc.PORTTYPE_OUT_DIGITAL]:
@@ -851,8 +952,7 @@ class DomBusHub:
                     if protocol == 2 or dbc.PROTOCOL1_WITH_PERIODIC_TX:
                         # too long time since last RX from this module: remove it from modules
                         _LOGGER.info(
-                            "Removing module %s because it's not alive",
-                            self.devID
+                            "Removing module %s because it's not alive", self.devID
                         )
                         delmodules.append(self.frameAddr)
                         # also remove any cmd in the txQueue
@@ -941,7 +1041,9 @@ class DomBusHub:
 
     def configFileWriteSched(self):
         """Schedule config file writing."""
-        if self.configFileWrite == 0:   # save hass.data[DOMAIN] in N * HEARTBEAT_INTERVAL seconds
+        if (
+            self.configFileWrite == 0
+        ):  # save hass.data[DOMAIN] in N * HEARTBEAT_INTERVAL seconds
             self.configFileWrite = 2
 
 
@@ -992,7 +1094,9 @@ def configFileInit(hass, entry):
         # check the CONF_BUSNUM for this bus
         if entry.entry_id not in data[CONF_SAVED][CONF_BUSNUM]:
             # CONF_BUSNUM not set for the current bus => initialize it to the next available value
-            data[CONF_SAVED][CONF_BUSNUM][entry.entry_id] = data[CONF_SAVED][CONF_BUSNUM]["next"]
+            data[CONF_SAVED][CONF_BUSNUM][entry.entry_id] = data[CONF_SAVED][
+                CONF_BUSNUM
+            ]["next"]
             data[CONF_SAVED][CONF_BUSNUM]["next"] += 1
 
     if CONF_DEVICES not in data[CONF_SAVED]:
@@ -1070,7 +1174,9 @@ async def async_setup_entry(hass, entry) -> bool:
         # )
 
     # Now register all entities saved in hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]
-    for device_id, config in hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES][entry.entry_id].items():
+    for device_id, config in hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES][
+        entry.entry_id
+    ].items():
         hub.registerEntity(config)
 
     hub.rxEnabled = True  # Enable RX when all platforms are created

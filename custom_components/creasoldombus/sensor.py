@@ -20,15 +20,19 @@ _LOGGER = logging.getLogger(__name__)
 
 platform = "sensor"
 
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the platform."""
+
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Add entities."""
     # save async_add_entity method for this platform, used to add new entities in the future
     if platform not in hass.data[DOMAIN]["async_add_entities"]:
         hass.data[DOMAIN]["async_add_entities"][platform] = {}
-    hass.data[DOMAIN]["async_add_entities"][platform][config_entry.entry_id] = async_add_entities
+    hass.data[DOMAIN]["async_add_entities"][platform][
+        config_entry.entry_id
+    ] = async_add_entities
 
 
 class DomBusSensor(RestoreEntity, SensorEntity):
@@ -50,7 +54,14 @@ class DomBusSensor(RestoreEntity, SensorEntity):
         self._hub = hub
         self._unique_id = unique_id
         self.entity_id = f"{platform}.{unique_id}"
-        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID, self._platform) = port_list
+        (
+            self._busnum,
+            self._protocol,
+            self._frameAddr,
+            self._port,
+            self._devID,
+            self._platform,
+        ) = port_list
         self._name = name
         (self._porttype, self._portopt) = porttype_list
         self._state = state
@@ -116,7 +127,7 @@ class DomBusSensor(RestoreEntity, SensorEntity):
     def state(self):
         """Return the state of the sensor."""
         if self.unit_of_measurement == ENERGY_KILO_WATT_HOUR:
-            return f"{self._state:.3f}"     # convert to string with 3 decimal numbers
+            return f"{self._state:.3f}"  # convert to string with 3 decimal numbers
         else:
             return self._state
 

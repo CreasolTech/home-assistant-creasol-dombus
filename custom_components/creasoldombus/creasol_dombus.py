@@ -147,7 +147,7 @@ class DomBusProtocol(asyncio.Protocol):
                     # frame checksum is ok
                     frameAddr = int(self.rxbuffer[1]) * 256 + int(self.rxbuffer[2])
                     frameIdx = dbc.FRAME_HEADER
-                    dstAddr = 0     # Protocol 1 does not have destination address => force dstAddr = 0
+                    dstAddr = 0  # Protocol 1 does not have destination address => force dstAddr = 0
                     frameError = 0
                 else:
                     frameError = 2  # 2=checksum error

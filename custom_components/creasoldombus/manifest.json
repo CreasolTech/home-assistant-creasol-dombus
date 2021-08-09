@@ -6,8 +6,8 @@
   "documentation": "https://www.creasol.it/en/support/domotics-home-automation-and-diy/153-creasol-dombus-and-home-assistant",
   "issue_tracker": "https://github.com/CreasolTech/home-assistant-creasol-dombus/issues",
   "requirements": [
-  	"pyserial>=3.5",
-	"pyserial-asyncio>=0.5"
+  	"pyserial==3.5",
+	"pyserial-asyncio==0.5"
   ],
   "ssdp": [],
   "zeroconf": [],

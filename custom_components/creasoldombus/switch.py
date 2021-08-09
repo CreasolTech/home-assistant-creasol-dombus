@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import CONF_DEVICES
+
 # import homeassistant.helpers.config_validation as cv
 
 from . import creasol_dombus_const as dbc
@@ -14,15 +15,19 @@ _LOGGER = logging.getLogger(__name__)
 
 platform = "switch"
 
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the platform."""
+
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Add entities."""
     # save async_add_entity method for this platform, used to add new entities in the future
     if platform not in hass.data[DOMAIN]["async_add_entities"]:
         hass.data[DOMAIN]["async_add_entities"][platform] = {}
-    hass.data[DOMAIN]["async_add_entities"][platform][config_entry.entry_id] = async_add_entities
+    hass.data[DOMAIN]["async_add_entities"][platform][
+        config_entry.entry_id
+    ] = async_add_entities
 
 
 class DomBusSwitch(SwitchEntity):
@@ -43,7 +48,14 @@ class DomBusSwitch(SwitchEntity):
         self._hub = hub
         self._unique_id = unique_id
         self.entity_id = f"{platform}.{unique_id}"
-        (self._busnum, self._protocol, self._frameAddr, self._port, self._devID, self._platform) = port_list
+        (
+            self._busnum,
+            self._protocol,
+            self._frameAddr,
+            self._port,
+            self._devID,
+            self._platform,
+        ) = port_list
         self._name = name
         (self._porttype, self._portopt) = porttype_list
         self._state = state
@@ -109,8 +121,10 @@ class DomBusSwitch(SwitchEntity):
         _LOGGER.debug("Turn ON swith")
         self._state = True
         # self._hub.txQueueAddComplete(protocol, frameAddr, cmd, cmdLen, cmdAck, port, args, retries=1, now=1) # send command to DomBus module
-        self._hub.txQueueAddComplete(0, self._frameAddr, dbc.CMD_SET, 2, 0, self._port, [1], dbc.TX_RETRY, 1)   # send command to DomBus module
-        self._hub.send()    # Transmit
+        self._hub.txQueueAddComplete(
+            0, self._frameAddr, dbc.CMD_SET, 2, 0, self._port, [1], dbc.TX_RETRY, 1
+        )  # send command to DomBus module
+        self._hub.send()  # Transmit
         self.schedule_update_ha_state()
         _LOGGER.info("Entity=%s", self)
 
@@ -118,6 +132,8 @@ class DomBusSwitch(SwitchEntity):
         """Turn the device off."""
         _LOGGER.debug("Turn OFF swith")
         self._state = False
-        self._hub.txQueueAddComplete(0, self._frameAddr, dbc.CMD_SET, 2, 0, self._port, [0], dbc.TX_RETRY, 1)   # send command to DomBus module
+        self._hub.txQueueAddComplete(
+            0, self._frameAddr, dbc.CMD_SET, 2, 0, self._port, [0], dbc.TX_RETRY, 1
+        )  # send command to DomBus module
         self.schedule_update_ha_state()
-        self._hub.send()    # Transmit
+        self._hub.send()  # Transmit
