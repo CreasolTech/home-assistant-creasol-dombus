@@ -1,13 +1,13 @@
 {
   "domain": "creasoldombus",
   "name": "Creasol DomBus RS485 modules",
-  "version": "1.0",
+  "version": "1.0.0",
   "config_flow": true,
   "documentation": "https://www.creasol.it/en/support/domotics-home-automation-and-diy/153-creasol-dombus-and-home-assistant",
   "issue_tracker": "https://github.com/CreasolTech/home-assistant-creasol-dombus/issues",
   "requirements": [
-  	"pyserial==3.5",
-	"pyserial-asyncio==0.5"
+  	"pyserial>=3.5",
+	"pyserial-asyncio>=0.5"
   ],
   "ssdp": [],
   "zeroconf": [],
