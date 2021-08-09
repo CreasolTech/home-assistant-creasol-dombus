@@ -745,7 +745,7 @@ class DomBusHub:
         self.send()  # Transmit!
 
     def send(self):
-        """Read txQueue and generate a frame to be transmitted to one device."""
+        """Read txQueue and generate a frame to be transmitted to one DomBus module."""
         # create frames from txQueue[], 1 for each address, and start transmitting
         # txQueue[self.frameAddr]=[[cmd, cmdLen, cmdAck, port, [arg1, arg2, arg3, ...], retries]]
         tx = 0
