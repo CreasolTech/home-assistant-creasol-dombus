@@ -1,0 +1,154 @@
+Creasol DomBus protocol description
+
+# Introduction
+
+Multi-master protocol used in a RS485 half-duplex bus to permit DomBus modules to 
+* communicate to a controller (Domoticz, Home Assistant, ...)
+* to exchange DCMD commands between modules: in this way it's possible to program modules to activate outputs when
+  an input changes its state, or when a sensor value goes over a threshold. 
+UART programmed at 115200bps, 8,n,1.
+When more than 1 byte is transmitted, big-endian is used
+
+
+
+# Frame structure for protocol version 2
+                                   <------------------- Payload ----------------->
+PREAMBLE DESTADDR SRCADDR   LENGTH CMD1    PORT1 VALUE1[] CMD2 PORT2 VALUE2[] .... CHECKSUM
+0x3a     0x1201   0x0000    3      0x29    7     1        NN   NN    NN            0x81
+0x3a    0x12 0x01 0x00 0x00 0x03   0x29    0x07  0x01                              0x81 
+Frame shown in the log file: 
+RX frame: P:2 3a 0000 -> 1201 03 A-SET 07 01 | 81
+
+PREAMBLE:	8 bit, 0x3a for the version 2 protocol
+DESTADDR:	16 bit address for the destination of the frame, high byte first
+SRCADDR:	16 bit address for the frame originator, high byte first
+LENGTH:		8 bit, length of the payload
+CMD1:		8 bit, ACK|CMD|CMDLEN/2
+	where
+	CMD=0x00 => CMD_CONFIG (to request or send configuration)
+		0x10 => CMD_GET (to ask for a value)
+		0x20 => CMD_SET (set output or value)
+		0xe0 => CMD_DCMD_CONFIG: Send DCMD configuration
+		0xf0 => CMD_DCMD: Send DCMD command to another DomBus module
+	
+	CMDACK=0x08 and is added if the command is a ACK/reply
+
+	CMDLEN/2 is a 3 bit value indicating the number of bytes after CMD / 2
+
+	In the example below, CMDACK=True => 0x08
+	CMD=CMD_SET => 0x20
+	CMDLEN=2 bytes => 0x01
+	0x08|0x20|0x01=0x29
+
+PORT1: number of module port (1, 2, 3, ...)
+
+VALUE1: 1, 3, 5, ... bytes depending by the port type and command.
+
+CMDn: as CMD1, referring another port
+PORTn: another port
+VALUEn[]: odd number of bytes within the value for the associated PORTn.
+
+CHECKSUM: simply the sum of each bytes from PREAMBLE (included) to CHECKSUM (excluded). In the example below, 
+	0x3a+0x12+0x01+0x03+0x29+0x07+0x01 = 0x81
+
+
+
+
+
+# CMD, PORTTYPE and PORTOPT constants
+
+CMD_CONFIG=0x00                 #Config port
+CMD_GET=0x10                    #Get status
+CMD_SET=0x20                    #Set outputs/values
+CMD_DCMD_CONFIG=0xe0            #Send DCMD configuration
+CMD_DCMD=0xf0                   #Receive DCMD command from Dombus
+
+
+SUBCMD_CALIBRATE=0x00
+
+PORTTYPE_DISABLED=0x0000        #port not used
+PORTTYPE_OUT_DIGITAL=0x0002     #digital, opto or relay output
+PORTTYPE_OUT_RELAY_LP=0x0004    #relay output with lowpower PWM
+PORTTYPE_OUT_LEDSTATUS=0x0008   #output used as led status
+PORTTYPE_OUT_DIMMER=0x0010      #dimmer output, 0-100%
+PORTTYPE_OUT_BUZZER=0x0020      #buzzer outputs (2 ports used as buzzer output, in push-pull)
+PORTTYPE_IN_AC=0x0040           #input AC 50Hz (with optocoupler)
+PORTTYPE_IN_DIGITAL=0x0080      #input digital
+PORTTYPE_IN_ANALOG=0x0100       #input analog (ADC)
+PORTTYPE_IN_TWINBUTTON=0x0200   #2 buttons connected to a single input through a resistor
+PORTTYPE_IN_COUNTER=0x0400      #input pulses that increase a counter (incremental)
+PORTTYPE_1WIRE=0x1000           #1 wire
+PORTTYPE_SENSOR_DISTANCE=0x2000 #distance measurement (send a pulse and measure echo delay)
+PORTTYPE_SENSOR_TEMP=0x4000     #Temperature
+PORTTYPE_SENSOR_HUM=0x8000      #Relative Humidity
+PORTTYPE_SENSOR_TEMP_HUM=0xc000 #Temp+Hum
+PORTTYPE_OUT_BLIND=0x01000000   #Blind output, close command (next port of DomBus device will be automatically used as Blind output, open command)
+PORTTYPE_OUT_ANALOG=0x02000000  #0-10V output, 1% step, 0-100
+
+PORTOPT_NONE=0x0000             #No options, PORT_NORMAL (1 when port is high, 0 when is connected to GND)
+PORTOPT_INVERTED=0x0001         #Logical inverted: (1 when port is GND, 0 when is high)
+
+
+
+# Frame examples
+
+Rx from module 0x1201 with one command, and Tx ACK from the controller to that module	
+RX frame: P:2 3a 1201 -> 0000 03 SET 07 01 | 79 
+TX frame: P:2 3a 0000 -> 1201 03 A-SET 07 01 | 81	
+
+------
+Rx from module 0x1201 with the status of 5 digital inputs, and corresponding ACK from the controller
+DomBus modules periodically transmit input status and sensor values.
+Input 1 = ON, input 2 = off, input 3 = off, input 4 = on, input 9 = on
+RX frame: P:2 3a 1201 -> 0000 15 SET 01 01 | SET 02 00 | SET 03 00 | SET 04 01 | SET 09 01 | 17
+TX frame: P:2 3a 0000 -> 1201 15 A-SET 01 01 | A-SET 02 00 | A-SET 03 00 | A-SET 04 01 | A-SET 09 01 | 3f
+
+------
+Rx from module 0606 within 
+port 0x07 (analog voltage, 16bit) = 0x4f40 (0=0V, 0xffff=3.3V on analog input). Don't care about the 3rd byte in VALUE[]
+port 0x0b (temperature in Kelvin*0.1, 16bit) = 0x0bb3=2995/10=299.5 - 273.2=26.3°C
+port 0x0c (relative humidity*0.1, 16bit) = 0x01fa=506 => 50.6% RH
+port 0x0d (temp+hum, 16+16bit) is used to create a temp+hum device in Domoticz that computes the dew point temperature
+RX frame: P:2 3a 0606 -> 0000 22 SET 07 4f 40 01 | SET 0b 0b b3 01 | SET 0c 01 fa 01 | SET 0d 0b b3 01 fa 00 | 14
+TX frame: P:2 3a 0000 -> 0606 22 A-SET 07 4f 40 00 | A-SET 0b 0b b3 00 | A-SET 0c 01 fa 00 | A-SET 0d ....
+
+------
+The controller periodically transmit the output status.
+Output 5 is ON, other outputs are OFF
+TX frame: P:2 3a 0000 -> 3102 21 SET 01 00 | SET 02 00 | SET 03 00 | SET 08 00 | SET 04 00 | SET 05 01 | SET 06 00 | 87
+RX frame: P:2 3a 3102 -> 0000 21 A-SET 01 00 | A-SET 02 00 | A-SET 03 00 | A-SET 08 00 | A-SET 04 00 | A-SET 05 01 | A-SET 06 00 | bf
+
+------
+When a frame is received from a unknown module => ask for port configuration
+#1201 sends status for port 1
+2021-08-16 23:45:39.133  dombus: (dombus) DUMP: RX frame: P:2 3a 1201 -> 0000 03 SET 07 01 | 79    
+
+#but module 1201 is unknown => ask full ports configuration (CFG with port 0xff)
+2021-08-16 23:45:39.148  dombus: (dombus) DUMP: TX frame: P:2 3a 0000 -> 1201 06 CFG ff 00 | A-SET 07 01 | 84 
+
+#and module replies with configuration for each port
+2021-08-16 23:45:39.402  dombus: (dombus) DUMP: RX frame: P:2 3a 1201 -> 0000 93 A-CFG ff 02 00 00 00 80 00 00 49 4f 31 00 00 00 00 80 00 01 49 4f 32 00 00 00 00 80 00 01 49 4f 33 00 00 00 00 80 00 00 49 4f 34 00 00 00 00 02 00 00 49 4f 35 00 00 00 00 04 00 00 49 4f 36 00 00 00 04 00 00 00 49 4f 37 00 00 00 04 00 00 00 49 4f 38 00 00 00 00 80 00 00 49 4f 39 00 | 79 
+
+In this case, frame is very long so CMDLEN is ignored
+CMD1=CMD_CONFIG|CMDACK=0x08
+PORT1=0xff (all ports)
+02=CONFIG PROTOCOL VERSION
+
+Port 1:
+0x00000080 = PORTTYPE_IN_DIGITAL
+0x0000 = PORTOPT_NORMAL
+0x494f3100 = "IN1" = PORT_NAME
+
+Port 2:
+0x00000080 = PORTTYPE_IN_DIGITAL
+0x0000 = PORTOPT_NORMAL
+0x494f3200 = "IN2" = PORT_NAME
+...
+Port 7: 
+0x00000400 = PORTTYPE_IN_COUNTER
+0x0000 = PORTOPT_NORMAL
+0x464f3700 = "IN7"
+...
+
+
+
