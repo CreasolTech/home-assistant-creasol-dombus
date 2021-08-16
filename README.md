@@ -3,7 +3,12 @@
 # home-assistant-creasol-dombus
 Home Assistant custom component to manage Creasol DomBus modules to realize a complete domotic network connected by RS485 bus at 115200bps.
 
-# Installation
+# Installation using HACS
+This is the preferred way to install the Creasol DomBus component, because it permits to easily update it.
+
+Using Home Assistant Community Store, open HACS panel -> Integrations -> search from 'Creasol DomBus' and click on INSTALL
+
+# Manual installation (if HACS is not installed)
 Copy contents of custom_components folder to your home-assistant config folder or install through HACS.
 
 ```console
