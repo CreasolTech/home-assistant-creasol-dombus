@@ -1,28 +1,48 @@
 {
-  "title": "Creasol DomBus RS485 modules",
-  "config": {
-    "step": {
-      "user": {
-        "title": "Enter serial path",
-        "description": "Enter a valid serial path, like /dev/ttyS0 or /dev/ttyUSB0",
-        "data": {
-          "serialpath": "Serial path"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
-    },
-    "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
-    }
-  },
-  "device_automation": {
-    "action_type": {
-      "turn_on": "Turn on {entity_name}",
-      "turn_off": "Turn off {entity_name}"
-    }
-  }
+	"title": "Creasol DomBus RS485 modules",
+		"config": {
+			"step": {
+				"user": {
+					"title": "Enter serial path",
+					"description": "Enter a valid serial path, like /dev/ttyS0 or /dev/ttyUSB0",
+					"data": {
+						"serialpath": "Serial path"
+					}
+				}
+			},
+			"error": {
+				"cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+				"unknown": "[%key:common::config_flow::error::unknown%]"
+			},
+			"abort": {
+				"already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+			}
+		},
+		"options": {
+			"step": {
+				"devID": {
+					"title": "Device configuration: select device ID",
+					"description": "Through this menu it's possible to configure any DomBus port, for example it's possible to set a port as analog or digital input, pushbutton, buzzer, counter, ...",
+					"data": {
+						"busNum": "Enter the bus number",
+						"devID": "Enter the device ID",
+						"cmd": "Enter the port configuration"
+					}
+				}
+			},
+			"error": {
+				"configuration_saved": "Configuration saved successfully!",
+				"invalid_bus": "Bus number is invalid: no config entry associated to this bus",
+				"dombus_not_found": "DomBus device with the specified address.port not found",
+				"opposite_not_found": "Opposite device is not installed",
+				"opposite_not_counter": "Opposite device is not configured as a counter",
+				"device_not_conter": "This device is not configured as a counter"
+			}
+		},
+		"device_automation": {
+			"action_type": {
+				"turn_on": "Turn on {entity_name}",
+				"turn_off": "Turn off {entity_name}"
+			}
+		}
 }

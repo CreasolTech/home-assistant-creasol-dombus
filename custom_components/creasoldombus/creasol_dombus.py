@@ -105,7 +105,9 @@ class DomBusProtocol(asyncio.Protocol):
                 else:
                     f += "%.2x " % int(buffer[i])
                 i += 1
+
                 for j in range(0, cmdLen):
+                    if (i+j)>=frameLen: break
                     f += "%.2x " % int(buffer[i + j])
                 f += "| "
                 i += cmdLen

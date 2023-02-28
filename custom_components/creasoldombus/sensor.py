@@ -3,18 +3,21 @@
 
 import logging
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.const import (
-    CONF_DEVICES,
-    PERCENTAGE,
-    TEMP_CELSIUS,
-    ENERGY_WATT_HOUR,
-    ENERGY_KILO_WATT_HOUR,
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
 )
 
-from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER, CONF_SAVED
+from homeassistant.const import (
+    ENERGY_KILO_WATT_HOUR,
+    ENERGY_WATT_HOUR,
+    PERCENTAGE,
+    TEMP_CELSIUS,
+)
+from homeassistant.helpers.restore_state import RestoreEntity
+
+from .const import DOMAIN, MANUFACTURER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,10 +48,7 @@ class DomBusSensor(RestoreEntity, SensorEntity):
         port_list,
         name=None,
         porttype_list=None,
-        state=False,
-        device_class=None,
-        icon="mdi:power_outlet",
-        unit_of_measurement=None,
+        opts_dict=None,
     ):
         """Initialize the class."""
         self._hub = hub
@@ -63,13 +63,20 @@ class DomBusSensor(RestoreEntity, SensorEntity):
             self._platform,
         ) = port_list
         self._name = name
-        (self._porttype, self._portopt) = porttype_list
-        self._state = state
-        self._device_class = device_class
-        self._icon = icon
-        self._unit_of_measurement = unit_of_measurement
+        (self._porttype, self._portopt, self._descr) = porttype_list
+        if opts_dict is not None:
+            if "value" in opts_dict:
+                self.state = opts_dict["value"]
+            if "entityClass" in opts_dict:
+                self.device_class = opts_dict["entityClass"]
+            if "entityIcon" in opts_dict:
+                self.icon = opts_dict["entityIcon"]
+            if "entityUOM" in opts_dict:
+                self.unit_of_measurement = opts_dict["entityUOM"]
+            if "opposite" in opts_dict:
+                self._opposite = opts_dict["opposite"]
         self._assumed = False
-        self.last_reset = 0
+        self.last_pulses = 0
         self.power = 0
 
     async def async_added_to_hass(self):
@@ -78,9 +85,9 @@ class DomBusSensor(RestoreEntity, SensorEntity):
         state = await self.async_get_last_state()
         if state:
             # last state exists: state.state recorded as string
-            if self._unit_of_measurement in [TEMP_CELSIUS, ENERGY_KILO_WATT_HOUR]:
+            if self.unit_of_measurement in [TEMP_CELSIUS, ENERGY_KILO_WATT_HOUR]:
                 self.setstate(float(state.state))
-            elif self._unit_of_measurement in [PERCENTAGE, ENERGY_WATT_HOUR]:
+            elif self.unit_of_measurement in [PERCENTAGE, ENERGY_WATT_HOUR]:
                 self.setstate(int(state.state))
             else:
                 self.setstate(state.state)
@@ -95,7 +102,7 @@ class DomBusSensor(RestoreEntity, SensorEntity):
             },
             "name": self.name,
             "manufacturer": MANUFACTURER,
-            "entry_type": "DomBus sensor",
+            "DeviceEntryType": "DomBus sensor",
         }
 
     @property
@@ -108,10 +115,10 @@ class DomBusSensor(RestoreEntity, SensorEntity):
         """No polling needed for this entity."""
         return False
 
-    @property
-    def device_class(self):
-        """Return the device class of the sensor."""
-        return self._device_class
+#    @property
+#    def device_class(self):
+#        """Return the device class of the sensor."""
+#        return self._attr_device_class
 
     @property
     def name(self):
@@ -127,17 +134,12 @@ class DomBusSensor(RestoreEntity, SensorEntity):
     def state(self):
         """Return the state of the sensor."""
         if self.unit_of_measurement == ENERGY_KILO_WATT_HOUR:
-            return f"{self._state:.3f}"  # convert to string with 3 decimal numbers
+            return f"{self._attr_state:.3f}"  # convert to string with 3 decimal numbers
         else:
-            return self._state
-
-    @property
-    def unit_of_measurement(self):
-        """Return the unit this state is expressed in."""
-        return self._unit_of_measurement
+            return self._attr_state
 
     def setstate(self, value):
-        """If value != self._state => update _state and call async_write_ha_state()."""
-        if value != self._state:
-            self._state = value
+        """If value != self.state => update _state and call async_write_ha_state()."""
+        if value != self.state:
+            self._attr_state = value
             self.async_write_ha_state()

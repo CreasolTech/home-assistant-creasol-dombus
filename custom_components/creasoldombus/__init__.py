@@ -1,10 +1,10 @@
 """Set up environment that mimics interaction with devices."""
 import asyncio
+from datetime import timedelta
 import json
 import logging
 import re
 import time
-from datetime import timedelta
 
 import serial_asyncio
 import voluptuous as vol
@@ -15,17 +15,22 @@ from homeassistant.const import (
     CONF_DEVICE_ID,
     CONF_DEVICES,
     CONF_ENTITIES,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_ENERGY,
+    ENERGY_KILO_WATT_HOUR,
     PERCENTAGE,
     TEMP_CELSIUS,
-    ENERGY_KILO_WATT_HOUR,
 )
 
 # import homeassistant.core as ha
-from homeassistant.core import callback, HassJob
+from homeassistant.core import HassJob, callback
 from homeassistant.helpers import event
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 
 # from homeassistant.helpers.entity_platform import EntityPlatform
 # from homeassistant.helpers.storage import Store     # Store method to save content
@@ -37,11 +42,18 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.util.dt import utcnow
 
 from . import creasol_dombus as dombus, creasol_dombus_const as dbc
-from .const import CONF_BUSNUM, CONF_SAVED, CONF_SERIALPATH, DOMAIN, HEARTBEAT_INTERVAL
 from .binary_sensor import DomBusBinarySensor
+from .const import (
+    CONF_BUSNUM,
+    CONF_BUSNUMENTRY,
+    CONF_SAVED,
+    CONF_SERIALPATH,
+    DOMAIN,
+    HEARTBEAT_INTERVAL,
+)
+from .light import DomBusLight
 from .sensor import DomBusSensor
 from .switch import DomBusSwitch
-from .light import DomBusLight
 
 # from .number import DomBusNumber
 
@@ -85,14 +97,16 @@ class DomBusHub:
         self.logLevel = dbc.LOG_DUMPALL  # force dumping everything
         self._hass = hass
         self.entry = entry
+        # self.entry['hass'] = hass
         self._entry_id = entry.entry_id
         # init hass.data[DOMAIN] if not already exists
         configFileInit(hass, entry)
         """ hass.data[DOMAIN] structure:
             hass.data[DOMAIN][CONF_SAVED]=structure saved in non-volatile memory:
             hass.data[DOMAIN][CONF_SAVED][CONF_BUSNUM]={entry_id1: 1, entry_id2: 2, "next": 3}  # associate numeric id to the corresponding entry_id of the component
-            hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]={ entry_id1: [ list of entities config for bus 1 ], entry_id2: [ list of entities config for bus2 ], ...}
-            hass.data[DOMAIN][CONF_ENTITIES]={ entry_id1: [ list of entities for bus1 ], entry_id2: [ list of entities for bus2 ], ...}
+            hass.data[DOMAIN][CONF_SAVED][CONF_BUSNUMENTRY]={1:entry_id1, 2:entry_id2}  # associate entry_id to the numeric bus number
+            hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]={ entry_id1: [ list of entities config for bus 1 ], entry_id2: [ list of entities config for bus2 ], ...} # DomBus port configuration
+            hass.data[DOMAIN][CONF_ENTITIES]={ entry_id1: [ list of entities for bus1 ], entry_id2: [ list of entities for bus2 ], ...}  # entity class pointer
             hass.data[DOMAIN]["hub"]={ entry_id1: self, entry_id2: hub2 }
         """
         if "hub" not in hass.data[DOMAIN]:
@@ -100,7 +114,7 @@ class DomBusHub:
         hass.data[DOMAIN]["hub"][self._entry_id] = self
         self._saved_config = hass.data[DOMAIN][CONF_SAVED]
         self._entities = hass.data[DOMAIN][CONF_ENTITIES][self._entry_id]
-        self._busnum = self._saved_config[CONF_BUSNUM][self._entry_id]
+        self._busNum = self._saved_config[CONF_BUSNUM][self._entry_id]
         self._serialpath = self.entry.data[CONF_SERIALPATH]
         self.loop = loop if loop else asyncio.get_event_loop()
         self.dombusprotocol = None
@@ -209,11 +223,11 @@ class DomBusHub:
             return "0"  # normal
 
     def getDeviceID(self):
-        """From bus number, 16bit address + port (i.e. 0x0023, port 1), generate the corresponding deviceID ("H0023_P01"), devID ("23.1"), deviceAddr ("0x0023") and uniqueID ("1_0023:01")."""
+        """From bus number, 16bit address + port (i.e. 0x0023, port 1), generate the corresponding deviceID ("H0023_P01"), devID ("23.1"), deviceAddr ("0x0023") and uniqueID ("1_0023_01")."""
         self.deviceID = f"H{self.frameAddr:04x}_P{self.port:02x}"
         self.devID = f"{self.frameAddr:x}.{self.port:x}"
         self.deviceAddr = f"0x{self.frameAddr:04x}"
-        self.uniqueID = f"{self._busnum}_{self.frameAddr:04x}_{self.port:02x}"
+        self.uniqueID = f"{self._busNum}_{self.frameAddr:04x}_{self.port:02x}"
 
     def getEntity(self):
         """Return the saved entity, if exist, corresponding to the current self.uniqueID (computed by getDeviceID)."""
@@ -352,6 +366,12 @@ class DomBusHub:
         platform = entityConfig[1][5]
         if port > dbc.PORTS_MAX:
             return  # ignore: maybe this is a CONFIG command to ask for configuration
+
+        if (
+            len(entityConfig[3]) == 2
+        ):  # add descr (configuration), that was missing in the first version
+            entityConfig[3].append("")
+
         self._saved_config[CONF_DEVICES][self._entry_id][uniqueID] = entityConfig
         self.configFileWriteSched()  # save hass.data[DOMAIN] in 5 * HEARTBEAT_INTERVAL seconds
 
@@ -369,6 +389,7 @@ class DomBusHub:
             _LOGGER.warn("Platform %s not implemented", platform)
             platformOk = False
         if platformOk:
+            _LOGGER.warn(f"Platform ok: {platform}. Now async_add_entity()")
             # store async_add_entity reference in hass.data[DOMAIN]["async_add_entities"][platform][entry.entry_ID]
             if (
                 "async_add_entities" in self._hass.data[DOMAIN]
@@ -394,9 +415,12 @@ class DomBusHub:
 
     def parseFrame(self, protocol, frameAddr, dstAddr, rxbuffer):
         """Get frame from DomBusProtocol and parse it."""
-        if self.rxEnabled is False or frameAddr == 0:
-            _LOGGER.warning("parseFrame disabled while initializing")
+        if self.rxEnabled is False:
+            _LOGGER.warning("Frame parsing is disabled while initializing")
             return  # frame from another controller: ignore it
+        elif frameAddr == 0:
+            _LOGGER.debug("Skip frame from another controller")
+            return
         self.protocol = protocol
         self.frameAddr = frameAddr
         if self.frameAddr != 0xFFFF and self.frameAddr not in self.modules:
@@ -547,7 +571,7 @@ class DomBusHub:
                                         portType = (
                                             dbc.PORTTYPE_IN_DIGITAL
                                         )  # default: Digital Input
-                                    descr = "ID=" + self.devID + ","
+                                    descr = ""
                                     for key, value in dbc.PORTTYPES.items():
                                         if value == portType:
                                             descr += key + ","
@@ -566,7 +590,7 @@ class DomBusHub:
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -574,7 +598,8 @@ class DomBusHub:
                                                 "binary_sensor",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
+                                            [portType, portOpt, descr],
+                                            {},
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType & (
@@ -582,11 +607,11 @@ class DomBusHub:
                                         | dbc.PORTTYPE_OUT_RELAY_LP
                                         | dbc.PORTTYPE_OUT_BUZZER
                                     ):
-                                        # relay output
+                                        # output
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -594,7 +619,8 @@ class DomBusHub:
                                                 "switch",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
+                                            [portType, portOpt, descr],
+                                            {},
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_OUT_DIMMER:
@@ -602,7 +628,7 @@ class DomBusHub:
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -610,8 +636,10 @@ class DomBusHub:
                                                 "light",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
-                                            255,  # TODO: restore brightness stored in config
+                                            [portType, portOpt, descr],
+                                            {
+                                                value: 255,  # TODO: restore brightness stored in config
+                                            },
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_OUT_ANALOG:
@@ -619,7 +647,7 @@ class DomBusHub:
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -627,7 +655,8 @@ class DomBusHub:
                                                 "light",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
+                                            [portType, portOpt, descr],
+                                            {},
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_SENSOR_TEMP:
@@ -635,7 +664,7 @@ class DomBusHub:
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -643,11 +672,13 @@ class DomBusHub:
                                                 "sensor",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
-                                            25,  # dummy temperature
-                                            DEVICE_CLASS_TEMPERATURE,
-                                            None,  # icon
-                                            TEMP_CELSIUS,
+                                            [portType, portOpt, descr],
+                                            {
+                                                value: 25,  # dummy temperature
+                                                SensorDeviceClass: SensorDeviceClass.TEMPERATURE,
+#                                                entityIcon: None,  # icon
+#                                                entityUOM: TEMP_CELSIUS,
+                                            },
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_SENSOR_HUM:
@@ -655,7 +686,7 @@ class DomBusHub:
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -663,11 +694,13 @@ class DomBusHub:
                                                 "sensor",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
-                                            50,  # dummy humidity
-                                            DEVICE_CLASS_HUMIDITY,
-                                            None,  # icon
-                                            PERCENTAGE,
+                                            [portType, portOpt, descr],
+                                            {
+                                                value: 50,  # dummy humidity
+                                                SensorDeviceClass: SensorDeviceClass.HUMIDITY,
+#                                               entityIcon: None,  # icon
+#                                                entityUOM: PERCENTAGE,
+                                            },
                                         ]
                                         self.registerEntity(entityConfig)
                                     elif portType == dbc.PORTTYPE_IN_COUNTER:
@@ -675,7 +708,7 @@ class DomBusHub:
                                         entityConfig = [
                                             self.uniqueID,
                                             [
-                                                self._busnum,
+                                                self._busNum,
                                                 self.protocol,
                                                 self.frameAddr,
                                                 self.port,
@@ -683,11 +716,13 @@ class DomBusHub:
                                                 "sensor",
                                             ],
                                             "[" + self.devID + "] " + portName,
-                                            [portType, portOpt],
-                                            0,  # counter value TODO: restore from storage
-                                            DEVICE_CLASS_ENERGY,
-                                            None,  # icon
-                                            ENERGY_KILO_WATT_HOUR,
+                                            [portType, portOpt, descr],
+                                            {
+                                                value: 0,  # counter value TODO: restore from storage
+                                                SensorDeviceClass: SensorDeviceClass.ENERGY,  # class
+#                                                entityIcon: "mdi:counter",  # icon
+#                                                entityUOM: ENERGY_KILO_WATT_HOUR,
+                                            },
                                         ]
                                         self.registerEntity(entityConfig)
                                     else:
@@ -780,9 +815,9 @@ class DomBusHub:
                                         if entity.device_class == DEVICE_CLASS_ENERGY:
                                             ms = int(time.time() * 1000)
                                             # check that counterTime[d.Unit] exists: used to set the last time a pulse was received.
-                                            # Althought it's possible to save data into d.Options, it's much better to have a dict so it's possible to periodically check all counterTime
+                                            # Although it's possible to save data into d.Options, it's much better to have a dict so it's possible to periodically check all counterTime
                                             msdiff = (
-                                                ms - entity.last_reset
+                                                ms - entity.last_pulses
                                             )  # elapsed time since last value
                                             if (
                                                 msdiff >= 2000
@@ -791,7 +826,7 @@ class DomBusHub:
                                                 entity.power = int(
                                                     arg1 * 3600000 / msdiff
                                                 )
-                                            entity.last_reset = ms
+                                            entity.last_pulses = ms
 
                                 # transmit ACK to the bus
                                 self.txQueueAddAck(dbc.CMD_SET, 2, dbc.CMD_ACK, [arg1])
@@ -1060,6 +1095,7 @@ def configFileInit(hass, entry):
     hass.data[DOMAIN] structure:
         hass.data[DOMAIN][CONF_SAVED]=structure saved in non-volatile memory:
         hass.data[DOMAIN][CONF_SAVED][CONF_BUSNUM]={entry_id1: 1, entry_id2: 2, "next": 3}  # associate numeric id to the corresponding entry_id of the component
+        hass.data[DOMAIN][CONF_SAVED][CONF_BUSNUMENTRY]={1:entry_id1, 2:entry_id2}  # associate entry_id to the numeric bus number
         hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES]={ entry_id1: [ list of entities config for bus 1 ], entry_id2: [ list of entities config for bus2 ], ...}
         hass.data[DOMAIN][CONF_ENTITIES]={ entry_id1: [ list of entities for bus1 ], entry_id2: [ list of entities for bus2 ], ...}
     """
@@ -1090,6 +1126,7 @@ def configFileInit(hass, entry):
     if CONF_BUSNUM not in data[CONF_SAVED]:
         # CONF_BUSNUM does not exist: set the current bus number = 1
         data[CONF_SAVED][CONF_BUSNUM] = {entry.entry_id: 1, "next": 2}
+        data[CONF_SAVED][CONF_BUSNUMENTRY] = {1: entry.entry_id}
     else:
         # check the CONF_BUSNUM for this bus
         if entry.entry_id not in data[CONF_SAVED][CONF_BUSNUM]:
@@ -1098,6 +1135,11 @@ def configFileInit(hass, entry):
                 CONF_BUSNUM
             ]["next"]
             data[CONF_SAVED][CONF_BUSNUM]["next"] += 1
+            data[CONF_SAVED][CONF_BUSNUMENTRY][
+                data[CONF_SAVED][CONF_BUSNUM][entry.entry_id]
+            ] = entry.entry_id
+
+        data[CONF_SAVED][CONF_BUSNUMENTRY] = {1: entry.entry_id}  # DEBUG
 
     if CONF_DEVICES not in data[CONF_SAVED]:
         data[CONF_SAVED][CONF_DEVICES] = {}
@@ -1179,6 +1221,7 @@ async def async_setup_entry(hass, entry) -> bool:
     ].items():
         hub.registerEntity(config)
 
+    _LOGGER.info("Enable RX")
     hub.rxEnabled = True  # Enable RX when all platforms are created
     return True
 
@@ -1187,10 +1230,10 @@ async def async_unload_entry(hass, entry) -> bool:
     """Unload a config entry."""
     unload_ok = all(
         await asyncio.gather(
-            *[
+            *(
                 hass.config_entries.async_forward_entry_unload(entry, platform)
                 for platform in PLATFORMS
-            ]
+            )
         )
     )
     if unload_ok:

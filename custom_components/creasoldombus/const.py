@@ -3,6 +3,7 @@
 DOMAIN = "creasoldombus"
 MANUFACTURER = "Creasol www.creasol.it"
 CONF_BUSNUM = "busnum"
+CONF_BUSNUMENTRY = "busnumentry"
 CONF_SAVED = "saved"
 CONF_SERIALPATH = "serialpath"
 CONF_SERIALPATH_MANUALLY = "Enter serial port manually"

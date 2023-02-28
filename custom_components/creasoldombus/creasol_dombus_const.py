@@ -1,12 +1,12 @@
 """Some constants used by DomBus protocol."""
 
-#if 1, when a module does not transmit for more than 15 minutes (MODULE_ALIVE_TIME), it will appear in red (TimedOut)
-PROTOCOL1_WITH_PERIODIC_TX = 0    # set to 1 if all existing modules transmit their status periodically (oldest modules with protocol 1 did not)
+# if 1, when a module does not transmit for more than 15 minutes (MODULE_ALIVE_TIME), it will appear in red (TimedOut)
+PROTOCOL1_WITH_PERIODIC_TX = 0  # set to 1 if all existing modules transmit their status periodically (oldest modules with protocol 1 did not)
 
-# if False, it's possibile to connect this controller to a bus with another controller already working.
+# if False, it's possible to connect this controller to a bus with another controller already working.
 # in this case this controller can read inputs and sensors, and control some outputs interfering just a little with the existing controller.
-# Set to True to get this the only one controller on the bus    
-TXACK_ENABLE = True    
+# Set to True to get this the only one controller on the bus
+TXACK_ENABLE = False
 
 PORTSDISABLEDFILE = "creasoldombus_%d_portsDisabled.json"
 PORTS_MAX = 32
@@ -29,10 +29,10 @@ CMD_ACK = 0x08
 TX_RETRY = 10  # max number of retries
 TX_RETRY_TIME = 80  # ms: retry every TX_RETRY_TIME * 2^retry
 # seconds: refresh output status to device every 5 minutes
-PERIODIC_STATUS_INTERVAL = 300  
+PERIODIC_STATUS_INTERVAL = 300
 
 # if no frame is received in this time, module is considered dead (and periodic output status will not be transmitted)
-MODULE_ALIVE_TIME = 900  
+MODULE_ALIVE_TIME = 900
 
 CMD_CONFIG = 0x00  # Config port
 CMD_GET = 0x10  # Get status
@@ -127,6 +127,26 @@ PORTTYPES = {
     "TEMP+HUM": 0xC000,  # temp+hum
     "OUT_BLIND": 0x01000000,  # blind with up/down/stop command
     "OUT_ANALOG": 0x02000000,  # 0-10V output, 0-100, 1% step
+}
+
+PORTTYPES_REV = {
+    0x00000000: "DISABLED",
+    0x00000002: "OUT_DIGITAL",
+    0x00000004: "OUT_RELAY_LP",
+    0x00000008: "OUT_LEDSTATUS",
+    0x00000010: "OUT_DIMMER",
+    0x00000020: "OUT_BUZZER",
+    0x00000040: "IN_AC",
+    0x00000080: "IN_DIGITAL",
+    0x00000100: "IN_ANALOG",
+    0x00000200: "IN_TWINBUTTON",
+    0x00000400: "IN_COUNTER",
+    0x00002000: "DISTANCE",
+    0x00004000: "TEMPERATURE",
+    0x00008000: "HUMIDITY",
+    0x0000C000: "TEMP+HUM",
+    0x01000000: "OUT_BLIND",
+    0x02000000: "OUT_ANALOG",
 }
 
 PORTOPTS = {

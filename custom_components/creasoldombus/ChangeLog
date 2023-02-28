@@ -1,0 +1,12 @@
+Creasol DomBus integration for Home Assistant
+Developed by Creasol - www.creasol.it
+
+TODO: changes applied in Domoticz sources but not in HA integration:
+* DIVIDER to set kWh pulses/kWh
+
+
+2023-xx--xx
+	Added configuration option, that permits to configure each module port (as analog or digital input, pushbutton, counter, buzzer, ....)
+
+2023-02-28
+	As HA classes were changed, modified the integration to use the new classes model

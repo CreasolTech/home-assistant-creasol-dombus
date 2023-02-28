@@ -3,17 +3,14 @@
 
 import logging
 
-from homeassistant.components.number import (
-    NumberEntity,
-)
-from homeassistant.const import (
-    CONF_DEVICES,
-)
-
-# import homeassistant.helpers.config_validation as cv
+from homeassistant.components.number import NumberEntity
+from homeassistant.const import CONF_DEVICES
 
 from . import creasol_dombus_const as dbc
 from .const import DOMAIN, MANUFACTURER
+
+# import homeassistant.helpers.config_validation as cv
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +73,7 @@ class DomBusNumber(NumberEntity):
             self._devID,
         ) = port_list
         self._name = name
-        (self._porttype, self._portopt) = porttype_list
+        (self._porttype, self._portopt, self._descr) = porttype_list
         self._state = state
         self._device_class = device_class
         self._icon = icon
@@ -96,7 +93,7 @@ class DomBusNumber(NumberEntity):
             },
             "name": self._name,
             "manufacturer": MANUFACTURER,
-            "entry_type": "DomBus number",
+            "DeviceEntryType": "DomBus number",
         }
 
     @property
@@ -155,10 +152,10 @@ class DomBusNumber(NumberEntity):
         #        return step
         return self._step_value
 
-    @property
-    def state(self) -> float:
-        """Return the entity state."""
-        return self._value
+#    @property
+#    def state(self) -> float:
+#        """Return the entity state."""
+#        return self._value
 
     @property
     def value(self) -> float:

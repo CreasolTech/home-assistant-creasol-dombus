@@ -4,18 +4,16 @@
 import logging
 
 from homeassistant.components.light import (
-    LightEntity,
-    SUPPORT_BRIGHTNESS,
     ATTR_BRIGHTNESS,
+    SUPPORT_BRIGHTNESS,
+    LightEntity,
 )
-from homeassistant.const import (
-    CONF_DEVICES,
-)
+
+from . import creasol_dombus_const as dbc
+from .const import DOMAIN, MANUFACTURER
 
 # import homeassistant.helpers.config_validation as cv
 
-from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER, CONF_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +62,7 @@ class DomBusLight(LightEntity):
             self._platform,
         ) = port_list
         self._name = name
-        (self._porttype, self._portopt) = porttype_list
+        (self._porttype, self._portopt, self._descr) = porttype_list
         self._state = state
         self._device_class = device_class
         self._icon = icon
@@ -81,7 +79,7 @@ class DomBusLight(LightEntity):
             },
             "name": self._name,
             "manufacturer": MANUFACTURER,
-            "entry_type": "DomBus light",
+            "DeviceEntryType": "DomBus light",
         }
 
     @property

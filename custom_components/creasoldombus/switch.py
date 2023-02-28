@@ -4,12 +4,12 @@
 import logging
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import CONF_DEVICES
+
+from . import creasol_dombus_const as dbc
+from .const import DOMAIN, MANUFACTURER
 
 # import homeassistant.helpers.config_validation as cv
 
-from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER, CONF_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class DomBusSwitch(SwitchEntity):
             self._platform,
         ) = port_list
         self._name = name
-        (self._porttype, self._portopt) = porttype_list
+        (self._porttype, self._portopt, self._descr) = porttype_list
         self._state = state
         self._device_class = device_class
         self._icon = icon
@@ -73,7 +73,8 @@ class DomBusSwitch(SwitchEntity):
             },
             "name": self._name,
             "manufacturer": MANUFACTURER,
-            "entry_type": "DomBus switch",
+#            "entry_type": "DomBus switch",
+            "DeviceEntryType": "DomBus switch",
         }
 
     @property
@@ -118,7 +119,7 @@ class DomBusSwitch(SwitchEntity):
 
     def turn_on(self, **kwargs):
         """Turn the switch on."""
-        _LOGGER.debug("Turn ON swith")
+        _LOGGER.debug("Turn ON switch")
         self._state = True
         # self._hub.txQueueAddComplete(protocol, frameAddr, cmd, cmdLen, cmdAck, port, args, retries=1, now=1) # send command to DomBus module
         self._hub.txQueueAddComplete(
@@ -130,7 +131,7 @@ class DomBusSwitch(SwitchEntity):
 
     def turn_off(self, **kwargs):
         """Turn the device off."""
-        _LOGGER.debug("Turn OFF swith")
+        _LOGGER.debug("Turn OFF switch")
         self._state = False
         self._hub.txQueueAddComplete(
             0, self._frameAddr, dbc.CMD_SET, 2, 0, self._port, [0], dbc.TX_RETRY, 1

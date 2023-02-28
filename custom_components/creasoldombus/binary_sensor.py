@@ -4,12 +4,11 @@
 import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.const import CONF_DEVICES
+
+from .const import DOMAIN, MANUFACTURER
 
 # import homeassistant.helpers.config_validation as cv
 
-from . import creasol_dombus_const as dbc
-from .const import DOMAIN, MANUFACTURER, CONF_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,19 +21,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Add entities."""
-    #    entities = []
-    #    entityConfigs = hass.data[DOMAIN][CONF_SAVED][CONF_DEVICES][config_entry.entry_id]
-    #    for device_id, config in entityConfigs.items():
-    #        porttype = config[3][0]
-    #        portname = config[2]
-    #        if porttype == dbc.PORTTYPE_IN_DIGITAL:
-    #            _LOGGER.debug("Adding saved entity for platform %s: id=%s, name=%s", platform, device_id, portname)
-    #            entity = DomBusBinarySensor(hass.data[DOMAIN]["hub"][config_entry.entry_id], *config)
-    #            entities.append(entity)
-    #            hass.data[DOMAIN][CONF_ENTITIES][config_entry.entry_id].append(entity)
-    #
-    #    async_add_entities(entities, update_before_add=True)
-    #    # save async_add_entity method for this platform, used to add new entities in the future
     if platform not in hass.data[DOMAIN]["async_add_entities"]:
         hass.data[DOMAIN]["async_add_entities"][platform] = {}
     hass.data[DOMAIN]["async_add_entities"][platform][
@@ -53,7 +39,6 @@ class DomBusBinarySensor(BinarySensorEntity):
         name=None,
         porttype_list=None,
         state=False,
-        device_class=None,
         icon="mdi:power_outlet",
     ):
         """Initialize the switch."""
@@ -69,9 +54,8 @@ class DomBusBinarySensor(BinarySensorEntity):
             self._platform,
         ) = port_list
         self._name = name
-        (self._porttype, self._portopt) = porttype_list
-        self._state = state
-        self._device_class = device_class
+        (self._porttype, self._portopt, self._descr) = porttype_list
+#        self._state = state
         self._icon = icon
         self._assumed = True
 
@@ -85,7 +69,7 @@ class DomBusBinarySensor(BinarySensorEntity):
             },
             "name": self._name,
             "manufacturer": MANUFACTURER,
-            "entry_type": "DomBus binary sensor",
+            "DeviceEntryType": "DomBus binary sensor",
         }
 
     @property
@@ -104,33 +88,13 @@ class DomBusBinarySensor(BinarySensorEntity):
         return self._name
 
     @property
-    def icon(self):
-        """Return the icon to use for device if any."""
-        return self._icon
-
-    @property
-    def assumed_state(self):
-        """Return if the state is based on assumptions."""
-        return self._assumed
-
-    @property
-    def is_on(self):
-        """Return true if switch is on."""
-        return self._state
-
-    @property
-    def device_class(self):
-        """Return device of entity."""
-        return self._device_class
-
-    @property
     def porttype(self):
         """Return the porttype."""
         return self._porttype
 
     def turn_on(self):
         """Set _state to True."""
-        self._state = True
+        self._attr_state = True
         self.schedule_update_ha_state()
 
     #        _LOGGER.info("device_state_attributes=%s", self.device_state_attributes)
@@ -138,7 +102,7 @@ class DomBusBinarySensor(BinarySensorEntity):
 
     def turn_off(self):
         """Set _state to False."""
-        self._state = False
+        self._attr_state = False
         self.schedule_update_ha_state()
 
 
