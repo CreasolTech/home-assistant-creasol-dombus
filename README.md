@@ -50,7 +50,7 @@ Modules and components are developed by Creasol, https://www.creasol.it/domotics
 [![alt DomBus31 image](https://images.creasol.it/creDomBus31_400.png "DomBus31: low power module with 6 N.O. relay outputs + 2 N.O./N.C. relay outputs")](https://www.creasol.it/CreasolDomBus31)
 
 [![alt DomBusTH image](https://images.creasol.it/creDomBusTH2_200.jpg "DomBusTH front view with white led, red/green led, temperature + humidity sensor")](https://www.creasol.it/CreasolDomBusTH)
-[![alt DomBusTH image](https://images.creasol.it/creDomBusTH6_200.webp "DomBusTH: module with temp+humidity sensors, 3 LEDs, 4 I/O, 2 outputs, 1 analog input")](https://www.creasol.it/CreasolDomBusTH)
+[![alt DomBusTH image](https://images.creasol.it/creDomBusTH6_200.png "DomBusTH: module with temp+humidity sensors, 3 LEDs, 4 I/O, 2 outputs, 1 analog input")](https://www.creasol.it/CreasolDomBusTH)
 [![alt DomBus12 image](https://images.creasol.it/creDomBus12_400.png "DomBus12: 7 I/Os + 2 open-drain outputs that can be connected to 2 external relays")](https://www.creasol.it/CreasolDomBus12)
 [![alt DomBus32 image](https://images.creasol.it/creDomBus32_3_200.png "DomBus32: 3 relays, 3 AC inputs, 5 I/Os")](https://www.creasol.it/DomBus32)
 [![alt DomBus36 image](https://images.creasol.it/creDomBus36_400.png "DomBus36: 12 relays module with very low power consumption")](https://www.creasol.it/DomBus36)
