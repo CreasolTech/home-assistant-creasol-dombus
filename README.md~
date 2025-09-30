@@ -8,7 +8,7 @@
 * [https://github.com/CreasolTech/homeassistant-addons](https://github.com/CreasolTech/homeassistant-addons) to install the **DomBusGateway addon for HAOS**
 
 ***
-The following info are left as reference. Don't try to install the DomBus integration because it will not work. _Use the links above for DomBusGateway bridge and addon_!
+The following info are left as reference. Don't try to install the DomBus integration because it will not work. Use the links above for DomBusGateway bridg!
 
 Home Assistant custom component to manage Creasol DomBus modules to realize a complete domotic network connected by RS485 bus at 115200bps.
 
